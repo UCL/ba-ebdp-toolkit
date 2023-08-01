@@ -6,9 +6,9 @@ Lightweight modelling workflow for EBDP TWIN2EXPAND project
 
 Project configuration is managed using a `pyproject.toml` file. [`pdm`](https://github.com/pdm-project/pdm) is suggested for installation and management of the packages and related upgrades. For example: `pdm install` will install packages listed in the `pyproject.toml` file and creates a self-contained development environment in a `.venv` folder.
 
-## Data
+## Data Loading
 
-The data source is tentatively [Overture Maps](https://overturemaps.org). This is likely to be preferable over OpenStreetMap due to a degree of data verification and consistency. However, given its newness there may be issues in coverage etc.
+See the [data_loading_notes.md](src/data/data-loading-notes.md)
 
 ## Licenses
 
