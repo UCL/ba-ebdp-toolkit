@@ -14,7 +14,7 @@ import geopandas as gpd
 import networkx as nx
 import pandas as pd
 from dotenv import load_dotenv  # type: ignore
-from shapely import geometry, wkb
+from shapely import geometry, wkb, ops
 from sqlalchemy import create_engine  # type: ignore
 from tqdm import tqdm
 
@@ -139,3 +139,43 @@ def iter_boundaries(
         _iter_boundaries(boundaries_schema, boundaries_table, start, end, buffer)  # type: ignore
     )
     return rows  # type: ignore
+
+
+Connector = tuple[str, geometry.Point]
+
+
+def split_street_segment(
+    line_string: geometry.LineString, connectors: list[Connector]
+) -> list[tuple[str, str, geometry.LineString]]:
+    """ """
+    # overture segments can span multiple intersections
+    # sort through and split until pairings are ready for insertion to the graph
+    node_segment_pairs: list[tuple[geometry.LineString, Connector, Connector]] = []
+    node_segment_lots: list[tuple[geometry.LineString, list[Connector]]] = [(line_string, connectors)]
+    # start iterating
+    while node_segment_lots:
+        old_line_string, old_connectors = node_segment_lots.pop()
+        # filter down connectors
+        new_connectors: list[tuple[str, geometry.Point]] = []
+        # if the point doesn't touch the line, discard
+        for _id, _point in old_connectors:
+            if _point.distance(old_line_string) > 0:
+                continue
+            new_connectors.append((_id, _point))
+        # if only two connectors, check that these are endpoints and continue
+        if len(new_connectors) == 2:
+            node_segment_pairs.append((old_line_string, *new_connectors))
+            continue
+        # look for splits
+        for _id, _point in new_connectors:
+            splits = ops.split(old_line_string, _point)
+            # continue if an endpoint
+            if len(splits.geoms) == 1:
+                continue
+            # otherwise unpack
+            line_string_a, line_string_b = splits.geoms
+            # otherwise split into two bundles and reset
+            node_segment_lots.append((line_string_a, new_connectors))
+            node_segment_lots.append((line_string_b, new_connectors))
+            break
+    return node_segment_pairs
