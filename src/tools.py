@@ -81,9 +81,7 @@ async def postgis_to_nx(
     )
     for node_data in tqdm(node_records):
         geom: geometry.Point = wkb.loads(node_data["geom"], hex=True)  # type: ignore
-        multigraph.add_node(
-            node_data["uid"], x=geom.x, y=geom.y, live=node_data["within"]
-        )  # pylint: disable=no-member
+        multigraph.add_node(node_data["uid"], x=geom.x, y=geom.y, live=node_data["within"])  # pylint: disable=no-member
     logger.info("Loading edges data")
     edge_records: Any = await db_con.fetch(
         f"""
