@@ -5,13 +5,14 @@ ogr2ogr -progress -spat -12.421470912798974 33.226730183416954 45.53515835575943
 from __future__ import annotations
 
 import duckdb
+from pathlib import Path
 
 from src import tools
 
 logger = tools.get_logger(__name__)
 
 
-def load_buildings(min_x: int, min_y: int, max_x: int, max_y: int):
+def load_buildings(out_path: Path, file_prefix: str, min_x: int, min_y: int, max_x: int, max_y: int):
     """ """
     logger.info("Loading Overture buildings")
     # initialise duck db
@@ -81,13 +82,13 @@ def load_buildings(min_x: int, min_y: int, max_x: int, max_y: int):
             AND bbox.minY > {min_y}
             AND bbox.maxX < {max_x}
             AND bbox.maxY < {max_y}
-    ) TO './temp/buildings.gpkg'
+    ) TO '{out_path.resolve()}/{file_prefix}_buildings.gpkg'
     WITH (FORMAT GDAL, DRIVER 'GPKG')
     """
     )
 
 
-def load_places(min_x: int, min_y: int, max_x: int, max_y: int):
+def load_places(out_path: Path, file_prefix: str, min_x: int, min_y: int, max_x: int, max_y: int):
     """ """
     logger.info("Loading Overture places.")
     # initialise duck db
@@ -165,13 +166,13 @@ def load_places(min_x: int, min_y: int, max_x: int, max_y: int):
             AND bbox.minY > {min_y}
             AND bbox.maxX < {max_x}
             AND bbox.maxY < {max_y}
-    ) TO './temp/places.gpkg'
+    ) TO '{out_path.resolve()}/{file_prefix}_places.gpkg'
     WITH (FORMAT GDAL, DRIVER 'GPKG')
     """
     )
 
 
-def load_nodes(min_x: int, min_y: int, max_x: int, max_y: int):
+def load_nodes(out_path: Path, file_prefix: str, min_x: int, min_y: int, max_x: int, max_y: int):
     """ """
     logger.info("Loading Overture connectors (nodes)")
     # initialise duck db
@@ -238,13 +239,13 @@ def load_nodes(min_x: int, min_y: int, max_x: int, max_y: int):
             AND bbox.minY > {min_y}
             AND bbox.maxX < {max_x}
             AND bbox.maxY < {max_y}
-    ) TO './temp/nodes.gpkg'
+    ) TO '{out_path.resolve()}/{file_prefix}_nodes.gpkg'
     WITH (FORMAT GDAL, DRIVER 'GPKG')
     """
     )
 
 
-def load_edges(min_x: int, min_y: int, max_x: int, max_y: int):
+def load_edges(out_path: Path, file_prefix: str, min_x: int, min_y: int, max_x: int, max_y: int):
     """ """
     logger.info("Loading Overture segments (edges)")
     # initialise duck db
@@ -311,7 +312,7 @@ def load_edges(min_x: int, min_y: int, max_x: int, max_y: int):
             AND bbox.minY > {min_y}
             AND bbox.maxX < {max_x}
             AND bbox.maxY < {max_y}
-    ) TO './temp/edges.gpkg'
+    ) TO '{out_path.resolve()}/{file_prefix}_edges.gpkg'
     WITH (FORMAT GDAL, DRIVER 'GPKG')
     """
     )
