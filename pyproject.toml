@@ -40,9 +40,16 @@ dependencies = [
     "shapely>=2.0.1",
     "tqdm>=4.65.0",
     "asyncpg>=0.28.0",
-    "sqlalchemy>=2.0.19",
     "python-dotenv>=1.0.0",
+    "cityseer>=4.0.0b2",
+    "pyproj>=3.6.0",
+    "psycopg2-binary>=2.9.7",
+    "sqlalchemy>=2.0.19",
+    "geoalchemy2>=0.14.1",
 ]
+[tool.pdm]
+allow_prereleases = true
+
 [tool.pdm.dev-dependencies]
 dev = [
     "black>=23.7.0",
@@ -50,7 +57,16 @@ dev = [
     "pylint>=2.17.5",
     "pytest>=7.4.0",
     "pip>=23.2.1",
+    "pandas-stubs>=2.0.2.230605",
 ]
+
+[tool.pdm.scripts]
+docstyle = "pydocstyle --config=pyproject.toml"
+formatting = { shell = "black --config=pyproject.toml ./ && isort --settings-file=pyproject.toml ./" }
+typechecks = "pyright ."
+linting = "pylint --rcfile=pyproject.toml ./src"
+tests = "pytest ./tests"
+verify_project = { shell = "pdm run formatting && pdm run linting && pdm run typechecks && pdm run tests" }
 
 [project.urls]
 homepage = "https://github.com/UCL/ba-ebdp-toolkit"
@@ -60,14 +76,6 @@ repository = "https://github.com/UCL/ba-ebdp-toolkit"
 [build-system]
 requires = ["pdm-backend"]
 build-backend = "pdm.backend"
-
-[tool.pdm.scripts]
-docstyle = "pydocstyle --config=pyproject.toml"
-formatting = { shell = "black --config=pyproject.toml ./ && isort --settings-file=pyproject.toml ./" }
-typechecks = "pyright ."
-linting = "pylint --rcfile=pyproject.toml ./src"
-tests = "pytest ./tests"
-verify_project = { shell = "pdm run formatting && pdm run linting && pdm run typechecks && pdm run tests" }
 
 [tool.black]
 line-length = 120

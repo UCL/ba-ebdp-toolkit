@@ -2,10 +2,14 @@
 from __future__ import annotations
 
 import json
+from functools import partial
 
 import geopandas as gpd
 import networkx as nx
 from shapely import geometry
+from shapely.ops import transform
+from pyproj import Transformer
+from tqdm import tqdm
 
 from src import tools
 
@@ -13,63 +17,88 @@ logger = tools.get_logger(__name__)
 
 
 def generate_graph(
-    nodes_gpkg_path: str,
-    edges_gpkg_path: str,
+    nodes_gdf: gpd.GeoDataFrame,
+    edges_gdf: gpd.GeoDataFrame,
     target_crs_epsg: int | str | None = None,
-    boundary: geometry.Polygon | None = None,
-    buffer: int | None = None,
-):
+    wgs_clip_bbox: geometry.Polygon | None = None,
+    neg_buffer_dist: int | None = None,
+    road_class_col: str | None = None,
+    drop_road_classes: list[str] = ["motorway", "parkingAisle"],
+) -> nx.MultiGraph:
     """ """
-    # prepare nodes
-    nodes_gdf = gpd.read_file(nodes_gpkg_path)
-    edges_gdf = gpd.read_file(edges_gpkg_path)
+    logger.info("Preparing GeoDataFrames")
+    # convert to projected CRS specified
     if target_crs_epsg is not None:
         nodes_gdf = nodes_gdf.to_crs(target_crs_epsg)
         edges_gdf = edges_gdf.to_crs(target_crs_epsg)
-    if boundary is not None:
-        # if buffer parameter, then buffer first
-        buff_boundary = boundary if buffer is None else boundary.buffer(buffer)
-        nodes_gdf = nodes_gdf[nodes_gdf.geometry.within(buff_boundary)]
-        edges_gdf = edges_gdf[edges_gdf.geometry.within(buff_boundary)]
-    # set live nodes
+    # clip if bbox
+    if wgs_clip_bbox is not None:
+        transformer = Transformer.from_crs("EPSG:4326", f"EPSG:{target_crs_epsg}", always_xy=True)
+        projector = partial(transformer.transform)
+        projected_bbox = transform(projector, wgs_clip_bbox)
+        nodes_gdf = nodes_gdf[nodes_gdf.geometry.intersects(projected_bbox)]
+        edges_gdf = edges_gdf[edges_gdf.geometry.intersects(projected_bbox)]
     nodes_gdf["live"] = True
-    # if boundary provided, then set False where outside the boundary
-    if boundary is not None:
-        nodes_gdf[~nodes_gdf.geometry.within(boundary)]["live"] = False
+    if neg_buffer_dist is not None:
+        bound_geom = nodes_gdf.unary_union.convex_hull
+        buff_geom = bound_geom.buffer(-abs(neg_buffer_dist))
+        nodes_gdf.loc[~nodes_gdf.geometry.within(buff_geom), "live"] = False
     # create graph
     multigraph = nx.MultiGraph()
     # filter by boundary and build nx
-    for node_data in nodes_gdf.itertuples(index=False):
-        # print(node_data)
+    logger.info("Adding nodes to graph")
+    for node_row in tqdm(nodes_gdf.itertuples()):
         multigraph.add_node(
-            node_data.id.split(".")[-1],
-            x=node_data.geometry.x,
-            y=node_data.geometry.y,
-            live=node_data.live,
-            level=node_data.level,
-            data=node_data.road,
+            node_row.Index,
+            x=node_row.geometry.x,
+            y=node_row.geometry.y,
+            live=node_row.live,
         )
-    for edges_data in edges_gdf.itertuples(index=False):
-        # print(edges_data)
-        # TODO
-        connectors: list[str] = json.loads(edges_data.connectors)
-        connectors = [c.split(".")[-1] for c in connectors]
-        connector_pairs: list[tuple[str, geometry.Point]] = []
-        for connector in connectors:
-            if connector in multigraph.nodes():
-                print("here")
-        seg_pairs = tools.split_street_segment(edges_data.geometry, connector_pairs)
-        for seg_pair in seg_pairs:
-            level = edges_data.level
-            data = edges_data.road
-            geom = edges_data.geometry
+    logger.info("Adding edges to graph")
+    kept_road_types: set[str] = set()
+    for edge_idx, edges_data in tqdm(edges_gdf.iterrows()):
+        if road_class_col is not None:
+            if edges_data[road_class_col] in drop_road_classes:
+                continue
+        connector_ids: list[str] = json.loads(edges_data.connectors)
+        connector_infos: list[tuple[str, geometry.Point]] = []
+        missing_connectors = False
+        for connector_id in connector_ids:
+            # skip malformed edges - this happens at boundary thresholds with missing nodes in relation to edges
+            if connector_id not in multigraph:
+                missing_connectors = True
+                break
+            connector_point = geometry.Point(multigraph.nodes[connector_id]["x"], multigraph.nodes[connector_id]["y"])
+            connector_infos.append((connector_id, connector_point))
+        if missing_connectors is True:
+            continue
+        if len(connector_infos) < 2:
+            # logger.warning("Only one connector pair for edge")
+            continue
+        street_segs = tools.split_street_segment(edges_data.geometry, connector_infos)
+        for seg_geom, node_info_a, node_info_b in street_segs:
+            if not node_info_a[1].touches(seg_geom) or not node_info_b[1].touches(seg_geom):
+                raise ValueError(
+                    "Edge and endpoint connector are not touching. "
+                    f"See connectors: {node_info_a[0]} and {node_info_b[0]}"
+                )
+            multigraph.add_edge(
+                node_info_a[0],
+                node_info_b[0],
+                edge_idx=edge_idx,
+                level=edges_data.level,
+                geom=seg_geom,
+            )
+    logger.info(f'Dropped road types: {", ".join(drop_road_classes)}')
+    logger.info(f'Kept road types: {", ".join(kept_road_types)}')
+
+    return multigraph
 
 
 if __name__ == "__main__":
     """ """
-    # TODO: workflow to process boundaries from DB
-    generate_graph(
-        boundary="",
-        nodes_gpkg_path="temp/nodes_small.gpkg",
-        edges_gpkg_path="temp/edges_small.gpkg",
+    multigraph = generate_graph(
+        nodes_gpkg_path="temp/_nodes_athens.gpkg",
+        edges_gpkg_path="temp/_edges_athens.gpkg",
+        target_crs_epsg=3035,
     )

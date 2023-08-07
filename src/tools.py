@@ -145,13 +145,13 @@ Connector = tuple[str, geometry.Point]
 
 
 def split_street_segment(
-    line_string: geometry.LineString, connectors: list[Connector]
+    line_string: geometry.LineString, connector_infos: list[Connector]
 ) -> list[tuple[str, str, geometry.LineString]]:
     """ """
     # overture segments can span multiple intersections
     # sort through and split until pairings are ready for insertion to the graph
     node_segment_pairs: list[tuple[geometry.LineString, Connector, Connector]] = []
-    node_segment_lots: list[tuple[geometry.LineString, list[Connector]]] = [(line_string, connectors)]
+    node_segment_lots: list[tuple[geometry.LineString, list[Connector]]] = [(line_string, connector_infos)]
     # start iterating
     while node_segment_lots:
         old_line_string, old_connectors = node_segment_lots.pop()

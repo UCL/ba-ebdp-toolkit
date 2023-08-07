@@ -1,6 +1,6 @@
 """
-ogr2ogr -progress -a_srs EPSG:4326 temp/buildings_4326.gpkg temp/buildings.gpkg
-ogr2ogr -progress -spat -12.421470912798974 33.226730183416954 45.535158355759435 71.13547646352613 temp/buildings_eu.gpkg temp/buildings_4326.gpkg
+ogr2ogr -progress -a_srs EPSG:4326 -t_srs EPSG:3035 -spat 23.5564 37.7753 24.0717 38.1758 temp/eu_nodes_3035.gpkg temp/eu_nodes.gpkg
+ogr2ogr -progress -a_srs EPSG:4326 -t_srs EPSG:3035 -spat 23.5564 37.7753 24.0717 38.1758 temp/eu_edges_3035.gpkg temp/eu_edges.gpkg
 """
 from __future__ import annotations
 
@@ -12,31 +12,37 @@ from src import tools
 logger = tools.get_logger(__name__)
 
 
-def load_buildings(out_path: Path, file_prefix: str, min_x: int, min_y: int, max_x: int, max_y: int):
+def prepare_db() -> duckdb.DuckDBPyConnection:
     """ """
-    logger.info("Loading Overture buildings")
-    # initialise duck db
-    duckdb.sql(
+    con = duckdb.connect()
+    con.execute(
         """
         INSTALL spatial;
         INSTALL httpfs;
             """
     )
     # configure
-    duckdb.sql(
+    con.execute(
         """
         LOAD spatial;
         LOAD httpfs;
         SET s3_region='us-west-2';
             """
     )
-    description = duckdb.sql(
+    return con
+
+
+def load_buildings(out_path: Path, file_prefix: str, min_x: int, min_y: int, max_x: int, max_y: int):
+    """ """
+    logger.info("Loading Overture buildings")
+    con = prepare_db()
+    con.sql(
         """
         DESCRIBE
         SELECT *
         FROM read_parquet('s3://overturemaps-us-west-2/release/2023-07-26-alpha.0/theme=buildings/type=building/*', filename=true, hive_partitioning=1)
         """
-    )
+    ).show()
     """
     ┌─────────────┬────────────────────────────────────────────────────────────┬
     │ column_name │                        column_type                         │
@@ -60,9 +66,8 @@ def load_buildings(out_path: Path, file_prefix: str, min_x: int, min_y: int, max
     │ 14 rows                                                                   
     └───────────────────────────────────────────────────────────────────────────
     """
-    logger.info(description)
     # fetch POI
-    duckdb.sql(
+    con.execute(
         f"""
             COPY (
         SELECT
@@ -86,33 +91,20 @@ def load_buildings(out_path: Path, file_prefix: str, min_x: int, min_y: int, max
     WITH (FORMAT GDAL, DRIVER 'GPKG')
     """
     )
+    logger.info("Overture buildings load completed")
 
 
 def load_places(out_path: Path, file_prefix: str, min_x: int, min_y: int, max_x: int, max_y: int):
     """ """
     logger.info("Loading Overture places.")
-    # initialise duck db
-    duckdb.sql(
-        """
-        INSTALL spatial;
-        INSTALL httpfs;
-            """
-    )
-    # configure
-    duckdb.sql(
-        """
-        LOAD spatial;
-        LOAD httpfs;
-        SET s3_region='us-west-2';
-            """
-    )
-    description = duckdb.sql(
+    con = prepare_db()
+    con.sql(
         """
         DESCRIBE
         SELECT *
         FROM read_parquet('s3://overturemaps-us-west-2/release/2023-07-26-alpha.0/theme=places/type=place/*', filename=true, hive_partitioning=1)
         """
-    )
+    ).show()
     """
     ┌─────────────┬─────────────────────────────────────┬
     │ column_name │             column_type             │
@@ -140,9 +132,8 @@ def load_places(out_path: Path, file_prefix: str, min_x: int, min_y: int, max_x:
     │ 18 rows                                            
     └────────────────────────────────────────────────────
     """
-    logger.info(description)
     # fetch POI
-    duckdb.sql(
+    con.execute(
         f"""
             COPY (
         SELECT
@@ -170,33 +161,20 @@ def load_places(out_path: Path, file_prefix: str, min_x: int, min_y: int, max_x:
     WITH (FORMAT GDAL, DRIVER 'GPKG')
     """
     )
+    logger.info("Overture places load completed")
 
 
 def load_nodes(out_path: Path, file_prefix: str, min_x: int, min_y: int, max_x: int, max_y: int):
     """ """
     logger.info("Loading Overture connectors (nodes)")
-    # initialise duck db
-    duckdb.sql(
-        """
-        INSTALL spatial;
-        INSTALL httpfs;
-            """
-    )
-    # configure
-    duckdb.sql(
-        """
-        LOAD spatial;
-        LOAD httpfs;
-        SET s3_region='us-west-2';
-            """
-    )
-    nodes_description = duckdb.sql(
+    con = prepare_db()
+    con.sql(
         """
         DESCRIBE
         SELECT *
         FROM read_parquet('s3://overturemaps-us-west-2/release/2023-07-26-alpha.0/theme=transportation/type=connector/*', filename=true, hive_partitioning=1)
         """
-    )
+    ).show()
     """
     ┌─────────────┬────────────────────────────────────────────────────────────┬
     │ column_name │                        column_type                         │
@@ -219,9 +197,8 @@ def load_nodes(out_path: Path, file_prefix: str, min_x: int, min_y: int, max_x: 
     │ 13 rows                                                                   
     └───────────────────────────────────────────────────────────────────────────
     """
-    logger.info(nodes_description)
     # fetch street nodes
-    duckdb.sql(
+    con.execute(
         f"""
             COPY (
         SELECT
@@ -243,33 +220,19 @@ def load_nodes(out_path: Path, file_prefix: str, min_x: int, min_y: int, max_x: 
     WITH (FORMAT GDAL, DRIVER 'GPKG')
     """
     )
+    logger.info("Overture street nodes load completed")
 
 
 def load_edges(out_path: Path, file_prefix: str, min_x: int, min_y: int, max_x: int, max_y: int):
     """ """
-    logger.info("Loading Overture segments (edges)")
-    # initialise duck db
-    duckdb.sql(
-        """
-        INSTALL spatial;
-        INSTALL httpfs;
-            """
-    )
-    # configure
-    duckdb.sql(
-        """
-        LOAD spatial;
-        LOAD httpfs;
-        SET s3_region='us-west-2';
-            """
-    )
-    edges_description = duckdb.sql(
+    con = prepare_db()
+    con.sql(
         """
         DESCRIBE
         SELECT *
         FROM read_parquet('s3://overturemaps-us-west-2/release/2023-07-26-alpha.0/theme=transportation/type=segment/*', filename=true, hive_partitioning=1)
         """
-    )
+    ).show()
     """
     ┌─────────────┬────────────────────────────────────────────────────────────┬
     │ column_name │                        column_type                         │
@@ -292,9 +255,8 @@ def load_edges(out_path: Path, file_prefix: str, min_x: int, min_y: int, max_x: 
     │ 13 rows                                                                   
     └───────────────────────────────────────────────────────────────────────────
     """
-    logger.info(edges_description)
     # fetch street edges
-    duckdb.sql(
+    con.execute(
         f"""
             COPY (
         SELECT
@@ -316,3 +278,4 @@ def load_edges(out_path: Path, file_prefix: str, min_x: int, min_y: int, max_x: 
     WITH (FORMAT GDAL, DRIVER 'GPKG')
     """
     )
+    logger.info("Overture street edges load completed")

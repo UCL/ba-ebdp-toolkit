@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import argparse
 from pathlib import Path
+import threading
+import time
 
 from src.data import loaders
 from src.tools import get_logger
@@ -20,7 +22,9 @@ if __name__ == "__main__":
     Example for smaller extents, e.g. Athens
     python -m src.data.load_data_bbox ./temp athens 23.5564 37.7753 24.0717 38.1758
     """
-    parser = argparse.ArgumentParser(description="Process min_x, min_y, max_x, and max_y.")
+    parser = argparse.ArgumentParser(
+        description="Process Overture maps data for min_x, min_y, max_x, and max_y bounds."
+    )
     parser.add_argument("out_path", type=str, help="Output filepath.")
     parser.add_argument("file_prefix", type=str, help="Name prefix for output files.")
     parser.add_argument("min_x", type=float, help="Minimum x value.")
@@ -32,8 +36,34 @@ if __name__ == "__main__":
     out_path = Path(args.out_path)
     if not out_path.exists():
         raise IOError("Output path does not exist")
+    if not out_path.is_dir():
+        raise IOError("Expected output directory, not a file name")
     logger.info(f'Writing output files to "{out_path.resolve()}" using prefix of "{args.file_prefix}"')
-    loaders.load_buildings(out_path, args.file_prefix, args.min_x, args.min_y, args.max_x, args.max_y)
-    loaders.load_places(out_path, args.file_prefix, args.min_x, args.min_y, args.max_x, args.max_y)
-    loaders.load_nodes(out_path, args.file_prefix, args.min_x, args.min_y, args.max_x, args.max_y)
-    loaders.load_edges(out_path, args.file_prefix, args.min_x, args.min_y, args.max_x, args.max_y)
+    # run queries
+    # space the threads starts otherwise they trip over each other with DuckDB in memory database initialisation
+    load_buildings = threading.Thread(
+        target=loaders.load_buildings, args=(out_path, args.file_prefix, args.min_x, args.min_y, args.max_x, args.max_y)
+    )
+    load_buildings.start()
+    time.sleep(1)
+    load_places = threading.Thread(
+        target=loaders.load_places, args=(out_path, args.file_prefix, args.min_x, args.min_y, args.max_x, args.max_y)
+    )
+    load_places.start()
+    time.sleep(1)
+    load_nodes = threading.Thread(
+        target=loaders.load_nodes, args=(out_path, args.file_prefix, args.min_x, args.min_y, args.max_x, args.max_y)
+    )
+    load_nodes.start()
+    time.sleep(1)
+    load_edges = threading.Thread(
+        target=loaders.load_edges, args=(out_path, args.file_prefix, args.min_x, args.min_y, args.max_x, args.max_y)
+    )
+    load_edges.start()
+    time.sleep(1)
+
+    load_buildings.join()
+    load_places.join()
+    load_nodes.join()
+    load_edges.join()
+    logger.info(f"Completed load of {args.file_prefix} data")
