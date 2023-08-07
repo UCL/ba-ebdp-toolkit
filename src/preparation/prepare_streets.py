@@ -60,6 +60,7 @@ def generate_graph(
         if road_class_col is not None:
             if edges_data[road_class_col] in drop_road_classes:
                 continue
+            kept_road_types.add(edges_data[road_class_col])
         connector_ids: list[str] = json.loads(edges_data.connectors)
         connector_infos: list[tuple[str, geometry.Point]] = []
         missing_connectors = False
