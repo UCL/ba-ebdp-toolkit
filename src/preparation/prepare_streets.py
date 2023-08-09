@@ -10,7 +10,7 @@ from shapely import geometry
 from shapely.ops import transform
 from pyproj import Transformer
 from tqdm import tqdm
-
+import matplotlib.pyplot as plt
 from src import tools
 
 logger = tools.get_logger(__name__)
@@ -19,30 +19,11 @@ logger = tools.get_logger(__name__)
 def generate_graph(
     nodes_gdf: gpd.GeoDataFrame,
     edges_gdf: gpd.GeoDataFrame,
-    target_crs_epsg: int | str | None = None,
-    wgs_clip_bbox: geometry.Polygon | None = None,
-    neg_buffer_dist: int | None = None,
     road_class_col: str | None = None,
     drop_road_classes: list[str] = ["motorway", "parkingAisle"],
 ) -> nx.MultiGraph:
     """ """
     logger.info("Preparing GeoDataFrames")
-    # convert to projected CRS specified
-    if target_crs_epsg is not None:
-        nodes_gdf = nodes_gdf.to_crs(target_crs_epsg)
-        edges_gdf = edges_gdf.to_crs(target_crs_epsg)
-    # clip if bbox
-    if wgs_clip_bbox is not None:
-        transformer = Transformer.from_crs("EPSG:4326", f"EPSG:{target_crs_epsg}", always_xy=True)
-        projector = partial(transformer.transform)
-        projected_bbox = transform(projector, wgs_clip_bbox)
-        nodes_gdf = nodes_gdf[nodes_gdf.geometry.intersects(projected_bbox)]
-        edges_gdf = edges_gdf[edges_gdf.geometry.intersects(projected_bbox)]
-    nodes_gdf["live"] = True
-    if neg_buffer_dist is not None:
-        bound_geom = nodes_gdf.unary_union.convex_hull
-        buff_geom = bound_geom.buffer(-abs(neg_buffer_dist))
-        nodes_gdf.loc[~nodes_gdf.geometry.within(buff_geom), "live"] = False
     # create graph
     multigraph = nx.MultiGraph()
     # filter by boundary and build nx
@@ -50,9 +31,8 @@ def generate_graph(
     for node_row in tqdm(nodes_gdf.itertuples()):
         multigraph.add_node(
             node_row.Index,
-            x=node_row.geometry.x,
-            y=node_row.geometry.y,
-            live=node_row.live,
+            x=node_row.geom.x,
+            y=node_row.geom.y,
         )
     logger.info("Adding edges to graph")
     kept_road_types: set[str] = set()
@@ -76,7 +56,7 @@ def generate_graph(
         if len(connector_infos) < 2:
             # logger.warning("Only one connector pair for edge")
             continue
-        street_segs = tools.split_street_segment(edges_data.geometry, connector_infos)
+        street_segs = tools.split_street_segment(edges_data.geom, connector_infos)
         for seg_geom, node_info_a, node_info_b in street_segs:
             if not node_info_a[1].touches(seg_geom) or not node_info_b[1].touches(seg_geom):
                 raise ValueError(
@@ -98,8 +78,4 @@ def generate_graph(
 
 if __name__ == "__main__":
     """ """
-    multigraph = generate_graph(
-        nodes_gpkg_path="temp/_nodes_athens.gpkg",
-        edges_gpkg_path="temp/_edges_athens.gpkg",
-        target_crs_epsg=3035,
-    )
+    pass
