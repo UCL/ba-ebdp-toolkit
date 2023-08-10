@@ -147,6 +147,7 @@ dev = [
     "pip>=23.2.1",
     "pandas-stubs>=2.0.2.230605",
     "ipykernel>=6.25.1",
+    "jupyter-black>=0.3.4",
 ]
 
 [tool.pdm.scripts]
