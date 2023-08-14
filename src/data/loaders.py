@@ -4,8 +4,9 @@ ogr2ogr -progress -a_srs EPSG:4326 -t_srs EPSG:3035 -spat 23.5564 37.7753 24.071
 """
 from __future__ import annotations
 
-import duckdb
 from pathlib import Path
+
+import duckdb
 
 from src import tools
 
