@@ -70,9 +70,11 @@ def assign_nodes_to_edges(
         connection.execute(
             text(
                 f"""
-            CREATE TABLE {edges_table} IF NOT EXISTS
+            CREATE TABLE IF NOT EXISTS {edges_table}
                 AS SELECT id, geom
                 FROM {template_edges_table};
+            CREATE INDEX IF NOT EXISTS idx_{edges_table.split('.')[-1]}_geom
+                ON {edges_table} USING gist (geom);
                 """
             )
         )
@@ -80,12 +82,13 @@ def assign_nodes_to_edges(
         # iterate columns and add
         for column in columns:
             if column.startswith("cc_metric"):
+                logger.info(f"Adding column {column}")
                 connection.execute(
                     text(
                         f"""
                     -- create column
                     ALTER TABLE {edges_table}
-                        CREATE COLUMN IF NOT EXISTS {column} float;
+                        ADD COLUMN IF NOT EXISTS {column} float;
                     -- assign based on nearest road nodes
                     WITH line_ends AS (
                         SELECT 
@@ -101,7 +104,7 @@ def assign_nodes_to_edges(
                         line_ends le
                         -- Get the closest start point
                         LEFT JOIN LATERAL (
-                            SELECT v.{column} as start_val
+                            SELECT nt.{column} as start_val
                             FROM {nodes_table} nt
                             -- degrees not metres
                             WHERE ST_DWithin(le.start_point, nt.geom, 0.001)
@@ -109,7 +112,7 @@ def assign_nodes_to_edges(
                         ) sp ON TRUE
                         -- Get the closest end point
                         LEFT JOIN LATERAL (
-                            SELECT v.{column} as end_val
+                            SELECT nt.{column} as end_val
                             FROM {nodes_table} nt
                             -- degrees not metres
                             WHERE ST_DWithin(le.end_point, nt.geom, 0.001)
