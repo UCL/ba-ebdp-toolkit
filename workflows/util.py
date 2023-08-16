@@ -64,7 +64,7 @@ def reassemble_network(engine: Engine, bounds_table: str, nodes_table: str, edge
 def assign_nodes_to_edges(
     columns: list[str], engine: Engine, template_edges_table: str, nodes_table: str, edges_table: str
 ) -> None:
-    """ """
+    """Use with caution as it blurs the results - e.g. steer clear for betweenness metrics."""
     with engine.connect() as connection:
         # create table
         connection.execute(

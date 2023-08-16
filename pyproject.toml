@@ -5,8 +5,8 @@ description = "Spatial analysis toolkit for reproducible Evidence Based urban De
 readme = "README.md"
 requires-python = ">=3.10, <3.12"
 license = { text = "AGPL-3.0" }
-authors = [{ name = "Gareth Simons", email = "info@benchmarkurbanism.com" }]
-maintainers = [{ name = "Gareth Simons", email = "info@benchmarkurbanism.com" }]
+authors = [{ name = "Gareth Simons", email = "gareth.simons@ucl.ac.uk" }]
+maintainers = [{ name = "Gareth Simons", email = "gareth.simons@ucl.ac.uk" }]
 keywords = [
   "network-topology",
   "architecture",

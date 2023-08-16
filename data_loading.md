@@ -65,10 +65,31 @@ ogr2ogr -progress -spat -12.421470912798974 33.226730183416954 45.53515835575943
 ## PENDING
 
 - Automate import and iteration of clusters or UMZs.
-- Automate import and upsampling of census grid population.
+- Automate import and upsampling of census grid population. Create a population nodes layer with values imputed from population raster.
+
+```sql
+create table if not exists {pop_dens_table_name}
+    as select * from {processed_network_layer};
+ALTER TABLE {pop_dens_table_name} ADD PRIMARY KEY (id);
+CREATE INDEX IF NOT EXISTS {pop_dens_table_name}_geom_gix
+    ON {pop_dens_table_name}
+    USING GIST (geom);
+alter table {pop_dens_table_name}
+    add column if not exists pop_dens real;
+UPDATE {pop_dens_table_name} n
+    -- assumes same SRID
+    SET pop_dens = ST_Value(r.rast, n.geom)
+    FROM {pop_dens_rast_table_name} r
+    WHERE ST_Intersects(n.geom, r.rast) and n.live;
+```
+
 - Automate urban atlas import
 
 ```sql
+ALTER TABLE {blocks_table_name} ADD PRIMARY KEY (id);
+CREATE INDEX IF NOT EXISTS {blocks_table_name}_geom_gix
+    ON {blocks_table_name}
+    USING GIST (geom);
 delete from {urban_atlas_name} tn
 where not exists (
     select 1
@@ -92,14 +113,12 @@ create table {blocks_table_name}
         'Port areas',
         'Sports and leisure facilities'
 ]);
-CREATE INDEX IF NOT EXISTS {blocks_table_name}_geom_gix
-    ON {blocks_table_name}
-    USING GIST (geom);
 ```
 
 - Automate building heights from raster
 
 ```sql
+-- uses overture buildings table directly
 ALTER TABLE {bldg_hts_table_name} ob
     ADD COLUMN max_rast_ht real;
 WITH ClippedRasters AS (
@@ -132,10 +151,14 @@ UPDATE {bldg_hts_table_name} ob
 - automate tree coverage import
 
 ```sql
-delete from {trees_name} tn
+ALTER TABLE {trees_table_name} ADD PRIMARY KEY (id);
+CREATE INDEX IF NOT EXISTS {trees_table_name}_geom_gix
+    ON {trees_table_name}
+    USING GIST (geom);
+delete from {trees_table_name} tn
 where not exists (
     select 1
     from {boundary_name} bb
-    where ST_Intersects(tn.geom, bb.geom)
+    where ST_Intersects(tn.geom, bb.geom);
 );
 ```
