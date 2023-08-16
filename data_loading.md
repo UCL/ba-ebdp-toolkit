@@ -41,6 +41,25 @@ Use `ogr2ogr` if clipping the datasets, for example:
 ogr2ogr -progress -spat -12.421470912798974 33.226730183416954 45.535158355759435 71.13547646352613 temp/places_eu.gpkg temp/places_4326.gpkg
 ```
 
+## PostGIS
+
+Data storage and sharing is done with `postgres` and `postGIS`.
+
+Ensure that the `postgis` and other basic extensions are enabled.
+
+It may be necessary to configure raster support, for example:
+
+```sql
+SELECT postgis_gdal_version();
+-- set output rasters to true if necessary
+SHOW postgis.enable_outdb_rasters;
+SET postgis.enable_outdb_rasters TO True;
+-- enable GDAL drivers if necessary
+ALTER DATABASE my_db SET postgis.gdal_enabled_drivers TO 'GTiff';
+SELECT pg_reload_conf();
+SELECT short_name FROM ST_GDALDrivers();
+```
+
 ## Boundaries
 
 - [EU Urban Clusters](https://ec.europa.eu/eurostat/web/gisco/geodata/reference-data/population-distribution-demography/clusters)
@@ -65,24 +84,7 @@ ogr2ogr -progress -spat -12.421470912798974 33.226730183416954 45.53515835575943
 ## PENDING
 
 - Automate import and iteration of clusters or UMZs.
-- Automate import and upsampling of census grid population. Create a population nodes layer with values imputed from population raster.
-
-```sql
-create table if not exists {pop_dens_table_name}
-    as select * from {processed_network_layer};
-ALTER TABLE {pop_dens_table_name} ADD PRIMARY KEY (id);
-CREATE INDEX IF NOT EXISTS {pop_dens_table_name}_geom_gix
-    ON {pop_dens_table_name}
-    USING GIST (geom);
-alter table {pop_dens_table_name}
-    add column if not exists pop_dens real;
-UPDATE {pop_dens_table_name} n
-    -- assumes same SRID
-    SET pop_dens = ST_Value(r.rast, n.geom)
-    FROM {pop_dens_rast_table_name} r
-    WHERE ST_Intersects(n.geom, r.rast) and n.live;
-```
-
+- Automate import and upsampling of census grid population.
 - Automate urban atlas import
 
 ```sql
