@@ -1,5 +1,6 @@
 # ignore temp
 temp
+*.tmp
 
 # MAC
 .DS_Store
