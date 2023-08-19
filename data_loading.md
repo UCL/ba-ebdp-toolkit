@@ -88,10 +88,6 @@ SELECT short_name FROM ST_GDALDrivers();
 - Automate urban atlas import
 
 ```sql
-ALTER TABLE {blocks_table_name} ADD PRIMARY KEY (id);
-CREATE INDEX IF NOT EXISTS {blocks_table_name}_geom_gix
-    ON {blocks_table_name}
-    USING GIST (geom);
 delete from {urban_atlas_name} tn
 where not exists (
     select 1
@@ -99,7 +95,21 @@ where not exists (
     where ST_Intersects(tn.geom, bb.geom)
 );
 create table {blocks_table_name}
-    as select *
+    as select
+        id::text,
+        fid,
+        country,
+        fua_name,
+        fua_code,
+        code_2018,
+        class_2018,
+        prod_date,
+        identifier,
+        perimeter,
+        area,
+        comment,
+        pop2018,
+        geom
     from {urban_atlas_name}
     where class_2018 = ANY(ARRAY[
         'Airports',
@@ -115,6 +125,10 @@ create table {blocks_table_name}
         'Port areas',
         'Sports and leisure facilities'
 ]);
+ALTER TABLE {blocks_table_name} ADD PRIMARY KEY (id);
+CREATE INDEX IF NOT EXISTS {blocks_table_name}_geom_gix
+    ON {blocks_table_name}
+    USING GIST (geom);
 ```
 
 - Automate building heights from raster

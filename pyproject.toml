@@ -1,12 +1,12 @@
 [project]
-name = "ebdptoolkit"
-version = "0.0.1b0"
-description = "Spatial analysis toolkit for reproducible Evidence Based urban Design and Planning (EBDP)"
+name = "name"
+version = "0.0.1"
+description = "describe"
 readme = "README.md"
 requires-python = ">=3.10, <3.12"
 license = { text = "AGPL-3.0" }
-authors = [{ name = "Gareth Simons", email = "gareth.simons@ucl.ac.uk" }]
-maintainers = [{ name = "Gareth Simons", email = "gareth.simons@ucl.ac.uk" }]
+authors = [{ name = "name", email = "" }]
+maintainers = [{ name = "name", email = "" }]
 keywords = [
   "network-topology",
   "architecture",
@@ -48,12 +48,10 @@ dependencies = [
     "cityseer>=4.0.0b12",
     "rasterio>=1.3.8",
     "rasterstats>=0.19.0",
+    "momepy>=0.6.0",
+    "matplotlib>=3.7.2",
+    "descartes>=1.1.0",
 ]
-[project.urls]
-homepage = "https://github.com/UCL/ba-ebdp-toolkit"
-documentation = "https://github.com/UCL/ba-ebdp-toolkit"
-repository = "https://github.com/UCL/ba-ebdp-toolkit"
-
 [build-system]
 requires = ["pdm-backend"]
 build-backend = "pdm.backend"
