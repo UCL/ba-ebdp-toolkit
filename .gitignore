@@ -1,6 +1,7 @@
 # ignore temp
 temp
 *.tmp
+cache
 
 # MAC
 .DS_Store

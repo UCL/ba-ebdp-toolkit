@@ -51,6 +51,7 @@ dependencies = [
     "momepy>=0.6.0",
     "matplotlib>=3.7.2",
     "descartes>=1.1.0",
+    "osmnx>=1.6.0",
 ]
 [build-system]
 requires = ["pdm-backend"]

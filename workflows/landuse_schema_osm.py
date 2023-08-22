@@ -1,4 +1,4 @@
-landuses = {
+SCHEMA = {
     "drinking": {"amenity": ["bar", "biergarten", "pub"]},
     "beverage": {"amenity": ["cafe"]},
     "eating": {"amenity": ["fast_food", "food_court", "ice_cream", "restaurant"]},
@@ -22,10 +22,10 @@ landuses = {
             "social_facility",
             "veterinary",
         ],
-        "healthcare": ["*"],
+        "healthcare": True,
     },
-    "office": {"office": ["*"]},
-    "grocery": {
+    "office": {"office": True},
+    "grocery_store": {
         "shop": [
             "alcohol",
             "bakery",
@@ -70,7 +70,7 @@ landuses = {
             "wool",
         ],
     },
-    "health_beauty": {
+    "health_beauty_store": {
         "shop": [
             "beauty",
             "chemist",
@@ -87,7 +87,7 @@ landuses = {
             "tattoo",
         ]
     },
-    "diy": {
+    "diy_store": {
         "shop": [
             "agrarian",
             "appliance",
@@ -110,7 +110,7 @@ landuses = {
             "trade",
         ]
     },
-    "furniture": {
+    "furniture_store": {
         "shop": [
             "antiques",
             "bed",
@@ -128,7 +128,7 @@ landuses = {
             "window_blind",
         ]
     },
-    "electronics": {
+    "electronics_store": {
         "shop": [
             "computer",
             "electronics",
@@ -139,7 +139,7 @@ landuses = {
             "vacuum_cleaner",
         ]
     },
-    "hobby": {
+    "hobby_store": {
         "shop": [
             "art",
             "camera",
@@ -155,8 +155,8 @@ landuses = {
             "video_games",
         ]
     },
-    "stationery": {"shop": ["anime", "books", "gift", "lottery", "newsagent", "stationery", "ticket"]},
-    "other": {
+    "stationery_store": {"shop": ["anime", "books", "gift", "lottery", "newsagent", "stationery", "ticket"]},
+    "other_store": {
         "shop": [
             "copyshop",
             "dry_cleaning",
@@ -210,7 +210,7 @@ landuses = {
         ]
     },
     "religious": {"amenity": ["place_of_worship"]},
-    "craft": {"craft": ["*"]},
-    "sport": {"sport": ["*"]},
-    "tourism": {"tourism": ["*"], "historic": ["*"]},
+    "service": {"craft": True},
+    "sport": {"sport": True},
+    "tourism": {"tourism": True, "historic": True},
 }
