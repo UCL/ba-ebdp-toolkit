@@ -22,13 +22,12 @@ def reassemble_network(engine: Engine, bounds_table: str, nodes_table: str, edge
             x,
             y,
             ST_Contains(bounds.geom, network.point_geom) as live,
-            ST_Transform(network.point_geom, 3035) as point_geom,
-            network.line_geom
+            ST_Transform(network.point_geom, 3035) as geom
         FROM {nodes_table} as network, {bounds_table} as bounds;
         """,
         engine,
         index_col="id",
-        geom_col="point_geom",
+        geom_col="geom",
     )
     logger.info("Loading edges GDF")
     # load edges
