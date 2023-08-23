@@ -2,9 +2,9 @@ SCHEMA = {
     "drinking": {"amenity": ["bar", "biergarten", "pub"]},
     "beverage": {"amenity": ["cafe"]},
     "eating": {"amenity": ["fast_food", "food_court", "ice_cream", "restaurant"]},
-    "children": {"amenity": ["kindergarten", "school", "childcare"], "leisure": ["playground"]},
+    "children": {"amenity": ["kindergarten", "childcare"], "leisure": ["playground"]},
     "education": {
-        "amenity": ["college", "language_school", "research_institute", "training", "university", "music_school"]
+        "amenity": ["school", "college", "language_school", "research_institute", "training", "university", "music_school"]
     },
     "transport": {
         "amenity": ["bicycle_parking", "bicycle_rental", "bus_station", "car_sharing", "ferry_terminal", "taxi"],
