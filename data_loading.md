@@ -1,20 +1,18 @@
 # Loading Notes
 
-The data source is tentatively [Overture Maps](https://overturemaps.org). This is likely to be preferable over OpenStreetMap due to a degree of data verification and consistency. However, given its newness there may be issues in coverage etc.
+The data source is a combination of [OpenStreetMap](https://www.openstreetmap.org) and [Overture Maps](https://overturemaps.org). Overture is a relatively new dataset which intends to provide a higher degree of data verification. However, OpenStreetMap currently remains preferable for land-use information.
 
-The data loading scripts fetch data from Overture Maps' storage services. This is done with the use of DuckDB. Note that DuckDB's functionality is currently limited, so filtering by extents can be slow because, for example, it appears to first retrieve all data and then filter.
+## Overture data downloads
 
-Not all parquet data types map nicely to GPKG, so the data tables are first described, and those with lists, maps, or other complex data types are converted to JSON to retain the information.
-
-## Loading
-
-Run the `load_data_bbox.py` script from the project folder (the folder containing `src`). This will concurrently download the Overture places, nodes, edges, and buildings datasets. The script requires an output directory, a file prefix, and a bounding box within which data will be retrieved.
+The workflow for ingesting Overture data entails a bulk-download for the extent of the EU using DuckDB. To proceed with a bulk data download, run the `load_data_bbox.py` script from the project folder (the folder containing `src`). This will concurrently download the Overture places, nodes, edges, and buildings datasets. The script requires an output directory, a file prefix, and a bounding box within which data will be retrieved. Not all parquet data types map nicely to GPKG, so those with lists, maps, or other complex data types are converted to JSON for storage as strings in GPKG fields.
 
 For example, for loading the EU:
 
 ```bash
 python -m src.data.load_data_bbox ./temp eu -12.4214 33.2267 45.5351 71.1354
 ```
+
+The bulk download is currently a slow process (the downloads can take several days). This is because DuckDB's functionality is presently limited and the Overture data source uses parquet instead of geoparquet, which would otherwise afford more efficient spatial queries. These are likely to be improved in due course.
 
 The download sizes for the EU are:
 
@@ -23,19 +21,13 @@ The download sizes for the EU are:
 - Edges dataset: 50.82GB
 - Buildings dataset: 81.04GB
 
-## Projection
-
-DuckDB doesn't set projection so set manually, so this may need to be set manually with `ogr2ogr`, though it seems to work fine without this step...
-
-For example:
+DuckDB doesn't set projection so set manually; so, if wanted, these need to be set manually with `ogr2ogr`, for example:
 
 ```bash
 ogr2ogr -progress -a_srs EPSG:4326 temp/places_4326.gpkg temp/places.gpkg
 ```
 
-## Clipping
-
-Use `ogr2ogr` if clipping the datasets, for example:
+`ogr2ogr` can likewise be used if clipping the datasets, for example:
 
 ```bash
 ogr2ogr -progress -spat -12.421470912798974 33.226730183416954 45.535158355759435 71.13547646352613 temp/places_eu.gpkg temp/places_4326.gpkg
@@ -45,7 +37,7 @@ ogr2ogr -progress -spat -12.421470912798974 33.226730183416954 45.53515835575943
 
 Data storage and sharing is done with `postgres` and `postGIS`.
 
-Ensure that the `postgis` and other basic extensions are enabled.
+Ensure that the `postGIS` and other basic extensions are enabled.
 
 It may be necessary to configure raster support, for example:
 
@@ -62,8 +54,23 @@ SELECT short_name FROM ST_GDALDrivers();
 
 ## Boundaries
 
-- [EU Urban Clusters](https://ec.europa.eu/eurostat/web/gisco/geodata/reference-data/population-distribution-demography/clusters)
-- [Urban Morphological Zones](https://www.eea.europa.eu/en/datahub/datahubitem-view/bf175d04-8441-4ed2-b089-9636ecf19353)
+There are several potential EU boundaries datasets:
+
+- [2018 Urban Clusters](https://ec.europa.eu/eurostat/web/gisco/geodata/reference-data/population-distribution-demography/clusters) - The 2018 urban clusters dataset is 1x1km raster based and broadly reflects the 2006 UMZ vector extents. These are [described as](https://ec.europa.eu/eurostat/statistics-explained/index.php?title=Territorial_typologies#Typologies) consisting of 1km2 grid cells with at least 300 people and a contiguous population of 5,000. The high density clusters are [described as](https://ec.europa.eu/eurostat/statistics-explained/index.php?title=Territorial_typologies#Typologies) contiguous 1km2 cells with at least 1,500 residents per km2 and consisting of clusters with at least 50,000 people.
+- [2006 UMZ vector](https://www.eea.europa.eu/en/datahub/datahubitem-view/6e5d9b0d-a448-4c73-b008-bdd98a3cf214) - 2006 UMZ is vector based and broadly reflects the urban clusters dataset but with a greater resolution.
+- [2012 UMZ](https://www.eea.europa.eu/en/datahub/datahubitem-view/bf175d04-8441-4ed2-b089-9636ecf19353) - 2012 UMZ datasets are clipped to administrative regions and therefore not useful for defining urban extents.
+
+Of these, the raster 2018 high density clusters is used
+
+- Download the dataset from the above link.
+- From the terminal, prepare and upload to PostGIS, substituting the host, user, and database parameters as required:
+
+```bash
+raster2pgsql -s 3035 -I -C -M HDENS_CLST_2018.tif -F eu.hdens_clusters > output.sql
+psql -h <host> -U <user> -d <db> -W -f output.sql
+```
+
+- Run the `prepare_boundaries.py` script to generate the vector boundaries from the raster source.
 
 ## Population Density
 
@@ -80,6 +87,14 @@ SELECT short_name FROM ST_GDALDrivers();
 ## Urban Atlas
 
 [urban atlas](https://land.copernicus.eu/local/urban-atlas/urban-atlas-2018) (~37GB vectors)
+
+## Census
+
+[census](https://ec.europa.eu/eurostat/web/population-demography/population-housing-censuses/information-data)
+[census hub](https://ec.europa.eu/CensusHub2/query.do?step=selectHyperCube&qhc=false)
+
+- The 2021 census adopts the 1km2 grid, but results are so far only released for population counts.
+- Other data will be released end March 2024.
 
 ## PENDING
 
