@@ -63,38 +63,32 @@ def load_bldg_hts(dir_path: Path, schema_name: str, table_name: str, bin_path: s
                         sql_path = str((unzip_dir / "output.sql").resolve())
                         # Run raster2pgsql and psql to import the raster into PostGIS
                         with open(sql_path, "w") as f:
-                            try:
-                                subprocess.run(
-                                    [
-                                        "raster2pgsql" if bin_path is None else str(Path(bin_path) / "raster2pgsql"),
-                                        "-c" if first_file is True else "-a",
-                                        "-s",
-                                        "3035",
-                                        full_raster_path,
-                                        f"{schema_name}.{table_name}",
-                                    ],
-                                    check=True,
-                                    stdout=f,
-                                )
-                            except subprocess.CalledProcessError as e:
-                                raise IOError(e.output.decode("utf-8"))
-                        try:
                             subprocess.run(
                                 [
-                                    "psql" if bin_path is None else str(Path(bin_path) / "psql"),
-                                    "-h",
-                                    db_config["host"],
-                                    "-U",
-                                    db_config["user"],
-                                    "-d",
-                                    db_config["database"],
-                                    "-f",
-                                    sql_path,
+                                    "raster2pgsql" if bin_path is None else str(Path(bin_path) / "raster2pgsql"),
+                                    "-c" if first_file is True else "-a",
+                                    "-s",
+                                    "3035",
+                                    full_raster_path,
+                                    f"{schema_name}.{table_name}",
                                 ],
                                 check=True,
+                                stdout=f,
                             )
-                        except subprocess.CalledProcessError as e:
-                            raise IOError(e.output.decode("utf-8"))
+                        subprocess.run(
+                            [
+                                "psql" if bin_path is None else str(Path(bin_path) / "psql"),
+                                "-h",
+                                db_config["host"],
+                                "-U",
+                                db_config["user"],
+                                "-d",
+                                db_config["database"],
+                                "-f",
+                                sql_path,
+                            ],
+                            check=True,
+                        )
             # Delete the unzipped files
             shutil.rmtree(unzip_dir)
             first_file = False
