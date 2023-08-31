@@ -9,7 +9,7 @@ The workflow for ingesting Overture data entails a bulk-download for the extent 
 For example, for loading the EU:
 
 ```bash
-python -m src.data.load_data_bbox ./temp eu -12.4214 33.2267 45.5351 71.1354
+python -m src.data.load_overture_bbox ./temp eu -12.4214 33.2267 45.5351 71.1354
 ```
 
 The bulk download is currently a slow process (the downloads can take several days). This is because DuckDB's functionality is presently limited and the Overture data source uses parquet instead of geoparquet, which would otherwise afford more efficient spatial queries. These are likely to be improved in due course.
@@ -66,7 +66,7 @@ Of these, the raster 2018 high density clusters is used
 - From the terminal, prepare and upload to PostGIS, substituting the host, user, and database parameters as required:
 
 ```bash
-raster2pgsql -s 3035 -I -C -M HDENS_CLST_2018.tif -F eu.hdens_clusters > output.sql
+raster2pgsql -d -s 3035 -I -C -M -F -t auto HDENS_CLST_2018.tif eu.hdens_clusters > output.sql
 psql -h <host> -U <user> -d <db> -W -f output.sql
 ```
 
@@ -76,9 +76,25 @@ psql -h <host> -U <user> -d <db> -W -f output.sql
 
 [Eurostat census grid population count](https://ec.europa.eu/eurostat/web/gisco/geodata/reference-data/population-distribution-demography/geostat#geostat11). This is count per km2. (~1.3GB)
 
+- Download the dataset from the above link.
+- From the terminal, prepare and upload to PostGIS, substituting the host, user, and database parameters as required:
+
+```bash
+raster2pgsql -d -s 3035 -I -C -M -F -t auto ESTAT_OBS-VALUE-T_2021_V1-0.tiff eu.pop_dens > output.sql
+psql -h <host> -U <user> -d <db> -W -f output.sql
+```
+
 ## Building Heights
 
 [Digital Height Model](https://land.copernicus.eu/local/urban-atlas/building-height-2012) (~ 1GB raster).
+
+> NOTE: This workflow assumes you're running the model for the entirety of the EU. If running a smaller extent, then only the necessary files need to be downloaded and can be uploaded using a similar process to the Population Density example.
+
+- Run the `load_bldg_hts_raster.py` script to upload the data. Provide the path to the input directory with the zipped data files. Also specify the schema, table name, and the optional argument `--bin_path` to provide a path to the `bin` directory for your `postgres` installation.
+
+```bash
+python -m src.data.load_bldg_hts_raster "./temp/Digital height Model EU" eu bldg_hts --bin_path /Applications/Postgres.app/Contents/Versions/15/bin/
+```
 
 ## Tree cover
 
