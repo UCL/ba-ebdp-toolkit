@@ -62,33 +62,37 @@ def load_bldg_hts(dir_path: Path, schema_name: str, table_name: str, bin_path: s
                         full_raster_path = str((Path(walk_dir_path) / raster_file_name).resolve())
                         sql_path = str((unzip_dir / "output.sql").resolve())
                         # Run raster2pgsql and psql to import the raster into PostGIS
-                        with open(sql_path, "w") as f:
+                        try:
+                            with open(sql_path, "w") as f:
+                                subprocess.run(
+                                    [
+                                        "raster2pgsql" if bin_path is None else str(Path(bin_path) / "raster2pgsql"),
+                                        "-c" if first_file is True else "-a",
+                                        "-s",
+                                        "3035",
+                                        full_raster_path,
+                                        f"{schema_name}.{table_name}",
+                                    ],
+                                    check=True,
+                                    stdout=f,
+                                )
                             subprocess.run(
                                 [
-                                    "raster2pgsql" if bin_path is None else str(Path(bin_path) / "raster2pgsql"),
-                                    "-c" if first_file is True else "-a",
-                                    "-s",
-                                    "3035",
-                                    full_raster_path,
-                                    f"{schema_name}.{table_name}",
+                                    "psql" if bin_path is None else str(Path(bin_path) / "psql"),
+                                    "-h",
+                                    db_config["host"],
+                                    "-U",
+                                    db_config["user"],
+                                    "-d",
+                                    db_config["database"],
+                                    "-f",
+                                    sql_path,
                                 ],
                                 check=True,
-                                stdout=f,
                             )
-                        subprocess.run(
-                            [
-                                "psql" if bin_path is None else str(Path(bin_path) / "psql"),
-                                "-h",
-                                db_config["host"],
-                                "-U",
-                                db_config["user"],
-                                "-d",
-                                db_config["database"],
-                                "-f",
-                                sql_path,
-                            ],
-                            check=True,
-                        )
+                        except Exception as err:
+                            logger.error(err)
+                            continue
             # Delete the unzipped files
             shutil.rmtree(unzip_dir)
             first_file = False
