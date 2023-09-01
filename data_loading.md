@@ -84,6 +84,18 @@ raster2pgsql -d -s 3035 -I -C -M -F -t auto ESTAT_OBS-VALUE-T_2021_V1-0.tiff eu.
 psql -h <host> -U <user> -d <db> -W -f output.sql
 ```
 
+## Census
+
+[census](https://ec.europa.eu/eurostat/web/population-demography/population-housing-censuses/information-data)
+[census hub](https://ec.europa.eu/CensusHub2/query.do?step=selectHyperCube&qhc=false)
+
+- The 2021 census adopts the 1km2 grid, but results are so far only released for population counts.
+- Other data will be released end March 2024.
+
+## Urban Atlas
+
+[urban atlas](https://land.copernicus.eu/local/urban-atlas/urban-atlas-2018) (~37GB vectors)
+
 ## Building Heights
 
 [Digital Height Model](https://land.copernicus.eu/local/urban-atlas/building-height-2012) (~ 1GB raster).
@@ -100,22 +112,8 @@ python -m src.data.load_bldg_hts_raster "./temp/Digital height Model EU" eu bldg
 
 [Tree cover](https://land.copernicus.eu/local/urban-atlas/street-tree-layer-stl-2018) (~36GB vectors).
 
-## Urban Atlas
-
-[urban atlas](https://land.copernicus.eu/local/urban-atlas/urban-atlas-2018) (~37GB vectors)
-
-## Census
-
-[census](https://ec.europa.eu/eurostat/web/population-demography/population-housing-censuses/information-data)
-[census hub](https://ec.europa.eu/CensusHub2/query.do?step=selectHyperCube&qhc=false)
-
-- The 2021 census adopts the 1km2 grid, but results are so far only released for population counts.
-- Other data will be released end March 2024.
-
 ## PENDING
 
-- Automate import and iteration of clusters or UMZs.
-- Automate import and upsampling of census grid population.
 - Automate urban atlas import
 
 ```sql
