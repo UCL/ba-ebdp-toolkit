@@ -26,10 +26,10 @@ engine = create_engine(connection_string)
 os.environ["PGPASSWORD"] = db_config["password"]
 
 
-def load_bldg_hts(dir_path: Path, schema_name: str, table_name: str, bin_path: str | None) -> None:
+def load_bldg_hts(dir_path_str: str, schema_name: str, table_name: str, bin_path: str | None) -> None:
     """ """
     with engine.connect() as connection:
-        table_exists = connection.execute(
+        table_exists: bool = connection.execute(  # type: ignore
             text(
                 f"""
                 SELECT EXISTS (
@@ -43,7 +43,7 @@ def load_bldg_hts(dir_path: Path, schema_name: str, table_name: str, bin_path: s
         raise IOError(f"Destination schema and table {schema_name}.{table_name} already exists; aborting.")
     # Loop through each ZIP file and upload TIFs
     first_file = True
-    dir_path = Path(dir_path)
+    dir_path: Path = Path(dir_path_str)
     unzip_dir = dir_path / "temp_unzipped/"
     for zip_file_name in os.listdir(dir_path):
         if zip_file_name.endswith(".zip"):
@@ -133,7 +133,7 @@ if __name__ == "__main__":
         "--bin_path", type=str, required=False, default=None, help="Optional 'bin' path for raster2pgsql and psql."
     )
     args = parser.parse_args()
-    logger.info(f"Loading data for path: {args.data_dir_path}")
+    logger.info(f"Loading building heights data from path: {args.data_dir_path}")
     data_dir_path = Path(args.data_dir_path)
     if not data_dir_path.exists():
         raise IOError("Input directory does not exist")

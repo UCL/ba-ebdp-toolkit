@@ -1,37 +1,6 @@
 # Loading Notes
 
-The data source is a combination of [OpenStreetMap](https://www.openstreetmap.org) and [Overture Maps](https://overturemaps.org). Overture is a relatively new dataset which intends to provide a higher degree of data verification. However, OpenStreetMap currently remains preferable for land-use information.
-
-## Overture data downloads
-
-The workflow for ingesting Overture data entails a bulk-download for the extent of the EU using DuckDB. To proceed with a bulk data download, run the `load_data_bbox.py` script from the project folder (the folder containing `src`). This will concurrently download the Overture places, nodes, edges, and buildings datasets. The script requires an output directory, a file prefix, and a bounding box within which data will be retrieved. Not all parquet data types map nicely to GPKG, so those with lists, maps, or other complex data types are converted to JSON for storage as strings in GPKG fields.
-
-For example, for loading the EU:
-
-```bash
-python -m src.data.load_overture_bbox ./temp eu -12.4214 33.2267 45.5351 71.1354
-```
-
-The bulk download is currently a slow process (the downloads can take several days). This is because DuckDB's functionality is presently limited and the Overture data source uses parquet instead of geoparquet, which would otherwise afford more efficient spatial queries. These are likely to be improved in due course.
-
-The download sizes for the EU are:
-
-- Places dataset: 5.58GB
-- Nodes dataset: 19.27GB
-- Edges dataset: 50.82GB
-- Buildings dataset: 81.04GB
-
-DuckDB doesn't set projection so set manually; so, if wanted, these need to be set manually with `ogr2ogr`, for example:
-
-```bash
-ogr2ogr -progress -a_srs EPSG:4326 temp/places_4326.gpkg temp/places.gpkg
-```
-
-`ogr2ogr` can likewise be used if clipping the datasets, for example:
-
-```bash
-ogr2ogr -progress -spat -12.421470912798974 33.226730183416954 45.535158355759435 71.13547646352613 temp/places_eu.gpkg temp/places_4326.gpkg
-```
+The data source is a combination of [Copernicus](), [OpenStreetMap](https://www.openstreetmap.org), and [Overture Maps](https://overturemaps.org). Overture is a relatively new dataset which intends to provide a higher degree of data verification. However, OpenStreetMap currently remains preferable for land-use information.
 
 ## PostGIS
 
@@ -70,7 +39,11 @@ raster2pgsql -d -s 3035 -I -C -M -F -t auto HDENS_CLST_2018.tif eu.hdens_cluster
 psql -h <host> -U <user> -d <db> -W -f output.sql
 ```
 
-- Run the `prepare_boundaries.py` script to generate the vector boundaries from the raster source.
+- Run the `prepare_boundary_polys.py` script to generate the vector boundaries from the raster source. Provide the schema name, the table name of the high density clusters per above upload, and the output table name for the polygon boundaries. For example:
+
+```bash
+python -m src.data.prepare_boundary_polys eu hdens_clusters bounds
+```
 
 ## Population Density
 
@@ -96,69 +69,66 @@ psql -h <host> -U <user> -d <db> -W -f output.sql
 
 [urban atlas](https://land.copernicus.eu/local/urban-atlas/urban-atlas-2018) (~37GB vectors)
 
-## Building Heights
-
-[Digital Height Model](https://land.copernicus.eu/local/urban-atlas/building-height-2012) (~ 1GB raster).
-
-> NOTE: This workflow assumes you're running the model for the entirety of the EU. If running a smaller extent, then only the necessary files need to be downloaded and can be uploaded using a similar process to the Population Density example.
-
-- Run the `load_bldg_hts_raster.py` script to upload the data. Provide the path to the input directory with the zipped data files. Also specify the schema, table name, and the optional argument `--bin_path` to provide a path to the `bin` directory for your `postgres` installation.
+- Run the `load_urban_atlas.py` script to upload the data. Provide the path to the input directory with the zipped data files. Also specify the schema, boundaries table name, and the output table name for the new urban atlas blocks table. For example:
 
 ```bash
-python -m src.data.load_bldg_hts_raster "./temp/Digital height Model EU" eu bldg_hts --bin_path /Applications/Postgres.app/Contents/Versions/15/bin/
+python -m src.data.load_urban_atlas "./temp/urban atlas" eu bounds blocks
 ```
 
 ## Tree cover
 
 [Tree cover](https://land.copernicus.eu/local/urban-atlas/street-tree-layer-stl-2018) (~36GB vectors).
 
-## PENDING
+- Run the `load_urban_atlas_trees.py` script to upload the data. Provide the path to the input directory with the zipped data files. Also specify the schema, boundaries table name, and the output table name for the new trees table. For example:
 
-- Automate urban atlas import
-
-```sql
-delete from {urban_atlas_name} tn
-where not exists (
-    select 1
-    from {boundary_name} bb
-    where ST_Intersects(tn.geom, bb.geom)
-);
-create table {blocks_table_name}
-    as select
-        id::text,
-        fid,
-        country,
-        fua_name,
-        fua_code,
-        code_2018,
-        class_2018,
-        prod_date,
-        identifier,
-        perimeter,
-        area,
-        comment,
-        pop2018,
-        geom
-    from {urban_atlas_name}
-    where class_2018 = ANY(ARRAY[
-        'Airports',
-        'Continuous urban fabric (S.L. : > 80%)',
-        'Discontinuous dense urban fabric (S.L. : 50% -  80%)',
-        'Discontinuous low density urban fabric (S.L. : 10% - 30%)',
-        'Discontinuous medium density urban fabric (S.L. : 30% - 50%)',
-        'Discontinuous very low density urban fabric (S.L. : < 10%)',
-        'Green urban areas',
-        'Industrial, commercial, public, military and private units',
-        'Isolated structures',
-        'Land without current use',
-        'Port areas',
-        'Sports and leisure facilities'
-]);
-ALTER TABLE {blocks_table_name} ADD PRIMARY KEY (id);
-CREATE INDEX IF NOT EXISTS {blocks_table_name}_geom_gix
-    ON {blocks_table_name}
-    USING GIST (geom);
+```bash
+python -m src.data.load_urban_atlas_trees "./temp/urban atlas trees" eu bounds trees
 ```
+
+## Building Heights
+
+[Digital Height Model](https://land.copernicus.eu/local/urban-atlas/building-height-2012) (~ 1GB raster).
+
+> NOTE: This workflow assumes you're running the model for the entirety of the EU. If running a smaller extent, then only the necessary files need to be downloaded and can be uploaded using a similar process to the Population Density example.
+
+- Run the `load_bldg_hts_raster.py` script to upload the data. Provide the path to the input directory with the zipped data files. Also specify the schema, table name, and the optional argument `--bin_path` to provide a path to the `bin` directory for your `postgres` installation. For example:
+
+```bash
+python -m src.data.load_bldg_hts_raster "./temp/Digital height Model EU" eu bldg_hts --bin_path /Applications/Postgres.app/Contents/Versions/15/bin/
+```
+
+## Downloading Overture data
+
+The workflow for ingesting Overture data entails a bulk-download for the extent of the EU using DuckDB. To proceed with a bulk data download, run the `load_data_bbox.py` script from the project folder (the folder containing `src`). This will concurrently download the Overture places, nodes, edges, and buildings datasets. The script requires an output directory, a file prefix, and a bounding box within which data will be retrieved. Not all parquet data types map nicely to GPKG, so those with lists, maps, or other complex data types are converted to JSON for storage as strings in GPKG fields.
+
+For example, for loading the EU:
+
+```bash
+python -m src.data.load_overture_bbox ./temp eu -12.4214 33.2267 45.5351 71.1354
+```
+
+The bulk download is currently a slow process (the downloads can take several days). This is because DuckDB's functionality is presently limited and the Overture data source uses parquet instead of geoparquet, which would otherwise afford more efficient spatial queries. These are likely to be improved in due course.
+
+The download sizes for the EU are:
+
+- Places dataset: 5.58GB
+- Nodes dataset: 19.27GB
+- Edges dataset: 50.82GB
+- Buildings dataset: 81.04GB
+
+DuckDB doesn't set projection so set manually; so, if wanted, these need to be set manually with `ogr2ogr`, for example:
+
+```bash
+ogr2ogr -progress -a_srs EPSG:4326 temp/places_4326.gpkg temp/places.gpkg
+```
+
+`ogr2ogr` can likewise be used if clipping the datasets, for example:
+
+```bash
+ogr2ogr -progress -spat -12.421470912798974 33.226730183416954 45.535158355759435 71.13547646352613 temp/places_eu.gpkg temp/places_4326.gpkg
+```
+
+## Ingesting Overture data
 
 - Automate building heights from raster
 

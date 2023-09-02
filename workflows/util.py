@@ -1,10 +1,11 @@
 """ """
 from __future__ import annotations
 
-from cityseer.tools import graphs
 import geopandas as gpd
-from sqlalchemy import text, Engine
 import networkx as nx
+from cityseer.tools import graphs
+from sqlalchemy import Engine, text
+
 from src import tools
 
 logger = tools.get_logger(__name__)
@@ -26,7 +27,7 @@ def reassemble_network(engine: Engine, bounds_table: str, nodes_table: str, edge
         FROM {nodes_table} as network, {bounds_table} as bounds;
         """,
         engine,
-        index_col="id",
+        index_col="fid",
         geom_col="geom",
     )
     logger.info("Loading edges GDF")
@@ -51,7 +52,7 @@ def reassemble_network(engine: Engine, bounds_table: str, nodes_table: str, edge
         FROM {edges_table};
         """,
         engine,
-        index_col="id",
+        index_col="fid",
         geom_col="geom",
     )
     logger.info("Generating networkx graph")
