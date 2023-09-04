@@ -17,7 +17,7 @@ if __name__ == "__main__":
     Examples are run from the project folder (the folder containing src)
 
     For loading EU bbox
-    python -m src.data.load_overture_bbox ./temp eu -12.4214 33.2267 45.5351 71.1354
+    python -m src.data.download_overture_bbox ./temp eu -12.4214 33.2267 45.5351 71.1354
     """
     parser = argparse.ArgumentParser(
         description="Process Overture maps data for min_x, min_y, max_x, and max_y bounds."

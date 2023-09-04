@@ -104,7 +104,7 @@ The workflow for ingesting Overture data entails a bulk-download for the extent 
 For example, for loading the EU:
 
 ```bash
-python -m src.data.load_overture_bbox ./temp eu -12.4214 33.2267 45.5351 71.1354
+python -m src.data.download_overture_bbox ./temp eu -12.4214 33.2267 45.5351 71.1354
 ```
 
 The bulk download is currently a slow process (the downloads can take several days). This is because DuckDB's functionality is presently limited and the Overture data source uses parquet instead of geoparquet, which would otherwise afford more efficient spatial queries. These are likely to be improved in due course.
@@ -116,29 +116,17 @@ The download sizes for the EU are:
 - Edges dataset: 50.82GB
 - Buildings dataset: 81.04GB
 
-DuckDB doesn't set projection so set manually; so, if wanted, these need to be set manually with `ogr2ogr`, for example:
-
-```bash
-ogr2ogr -progress -a_srs EPSG:4326 temp/places_4326.gpkg temp/places.gpkg
-```
-
-`ogr2ogr` can likewise be used if clipping the datasets, for example:
-
-```bash
-ogr2ogr -progress -spat -12.421470912798974 33.226730183416954 45.535158355759435 71.13547646352613 temp/places_eu.gpkg temp/places_4326.gpkg
-```
-
 ## Ingesting Overture data
 
 - Automate building heights from raster
 
 ```sql
 -- uses overture buildings table directly
-ALTER TABLE {bldg_hts_table_name} ob
+ALTER TABLE {bldg_hts_table_name}
     ADD COLUMN max_rast_ht real;
 WITH ClippedRasters AS (
     SELECT
-        p.id AS region_id,
+        p.fid AS region_id,
         ST_Clip(r.rast, ST_Transform(p.geom, 3035)) AS clipped_rast
     FROM
         {input_rast_bldg_hts_table} r
@@ -160,20 +148,5 @@ WITH ClippedRasters AS (
 UPDATE {bldg_hts_table_name} ob
     SET max_rast_ht = mv.max_val
     FROM MaxRasterValues mv
-    WHERE mv.region_id = ob.id;
-```
-
-- automate tree coverage import
-
-```sql
-ALTER TABLE {trees_table_name} ADD PRIMARY KEY (id);
-CREATE INDEX IF NOT EXISTS {trees_table_name}_geom_gix
-    ON {trees_table_name}
-    USING GIST (geom);
-delete from {trees_table_name} tn
-where not exists (
-    select 1
-    from {boundary_name} bb
-    where ST_Intersects(tn.geom, bb.geom);
-);
+    WHERE mv.region_id = ob.fid;
 ```

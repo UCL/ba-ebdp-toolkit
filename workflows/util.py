@@ -18,7 +18,7 @@ def reassemble_network(engine: Engine, bounds_table: str, nodes_table: str, edge
     nodes_gdf: gpd.GeoDataFrame = gpd.read_postgis(  # type: ignore
         f"""
         SELECT
-            network.id,
+            network.fid,
             ns_node_idx,
             x,
             y,
@@ -35,7 +35,7 @@ def reassemble_network(engine: Engine, bounds_table: str, nodes_table: str, edge
     edges_gdf: gpd.GeoDataFrame = gpd.read_postgis(  # type: ignore
         f"""
         SELECT
-            id,
+            fid,
             ns_edge_idx,
             start_ns_node_idx,
             end_ns_node_idx,

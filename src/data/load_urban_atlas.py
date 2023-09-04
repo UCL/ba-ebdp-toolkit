@@ -102,7 +102,7 @@ def load_urban_blocks(dir_path_str: str, schema_name: str, bounds_table_name: st
                         gdf["bbox"] = gdf["geometry"].envelope
                         gdf.set_geometry("bbox", inplace=True)
                         gdf_itx = gdf[gdf.intersects(bounds_geom)]
-                        gdf_itx.rename(columns={"geometry": "geom"}, inplace=True)
+                        gdf_itx.rename(columns={"geometry": "geom", "Pop2018": "pop2018"}, inplace=True)
                         gdf_itx.set_geometry("geom", inplace=True)
                         # explode multipolygons
                         gdf_exp = gdf_itx.explode(index_parts=False)
@@ -115,7 +115,7 @@ def load_urban_blocks(dir_path_str: str, schema_name: str, bounds_table_name: st
                             "class_2018",
                             "identifier",
                             "comment",
-                            "Pop2018",
+                            "pop2018",
                             "geom",
                         ]
                         gdf_exp[cols].to_postgis(
