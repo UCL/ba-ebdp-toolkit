@@ -22,9 +22,7 @@ load_dotenv()
 
 db_config_json = os.getenv("DB_CONFIG")
 db_config = json.loads(db_config_json)
-connection_string = (
-    f"postgresql+psycopg2://{db_config['user']}:{db_config['password']}@{db_config['host']}/{db_config['database']}"
-)
+connection_string = f"postgresql+psycopg2://{db_config['user']}:{db_config['password']}@{db_config['host']}:{db_config['port']}/{db_config['database']}"
 engine = create_engine(connection_string)
 
 
@@ -99,6 +97,7 @@ def load_tree_canopies(dir_path_str: str, schema_name: str, bounds_table_name: s
                             index_label="temp_id",
                         )
             # Delete the unzipped files
+            # TODO: why is this raising?
             shutil.rmtree(unzip_dir)
     with engine.connect() as connection:
         connection.execute(  # type: ignore

@@ -21,6 +21,12 @@ SELECT pg_reload_conf();
 SELECT short_name FROM ST_GDALDrivers();
 ```
 
+## Create a working schema
+
+```sql
+CREATE SCHEMA IF NOT EXISTS eu;
+```
+
 ## Boundaries
 
 There are several potential EU boundaries datasets:

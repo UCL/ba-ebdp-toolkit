@@ -19,9 +19,8 @@ load_dotenv()
 
 db_config_json = os.getenv("DB_CONFIG")
 db_config = json.loads(db_config_json)
-connection_string = (
-    f"postgresql+psycopg2://{db_config['user']}:{db_config['password']}@{db_config['host']}/{db_config['database']}"
-)
+connection_string = f"postgresql+psycopg2://{db_config['user']}:{db_config['password']}@{db_config['host']}:{db_config['port']}/{db_config['database']}"
+
 engine = create_engine(connection_string)
 os.environ["PGPASSWORD"] = db_config["password"]
 
@@ -85,6 +84,8 @@ def load_bldg_hts(dir_path_str: str, schema_name: str, table_name: str, bin_path
                                     db_config["user"],
                                     "-d",
                                     db_config["database"],
+                                    "-p",
+                                    db_config["port"],
                                     "-f",
                                     sql_path,
                                 ],
