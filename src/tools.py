@@ -6,19 +6,15 @@ import json
 import logging
 import os
 import warnings
-from pathlib import Path
-from typing import Any, Generator
+from typing import Any
 
-import asyncpg
-import geopandas as gpd
 import networkx as nx
 import pandas as pd
+import psycopg2
+import sqlalchemy
 from dotenv import load_dotenv  # type: ignore
-from shapely import geometry, wkb, ops
-from sqlalchemy import create_engine  # type: ignore
+from shapely import geometry, ops, wkb
 from tqdm import tqdm
-
-from src import structures
 
 warnings.simplefilter(action="ignore", category=pd.errors.PerformanceWarning)
 
@@ -30,34 +26,46 @@ def get_logger(name: str, log_level: int = logging.INFO) -> logging.Logger:
 
 logger = get_logger(__name__)
 
+load_dotenv()
 
-def get_db_config() -> structures.DBConfig:
+
+def get_db_config() -> dict[str, str | None]:
     """ """
-    load_dotenv()
     db_config_json = os.getenv("DB_CONFIG")
     if db_config_json is None:
         raise ValueError("Unable to retrieve DB_CONFIG environment variable.")
-    db_config: structures.DBConfig = json.loads(db_config_json)
+    db_config = json.loads(db_config_json)
     for key in ["host", "port", "user", "database", "password"]:
         if key not in db_config:
-            raise ValueError("Unable to find expected key: {key} in DB_CONFIG")
+            raise ValueError(f"Unable to find expected key: {key} in DB_CONFIG")
     return db_config
 
 
-def get_db_con_str() -> str:
+def get_sqlalchemy_engine() -> sqlalchemy.engine.Engine:
     """ """
     db_config = get_db_config()
-    con_str = (
-        f"postgresql://{db_config['host']}:{db_config['port']}/{db_config['database']}?"
-        f"user={db_config['user']}&password={db_config['password']}"
+    db_con_str = (
+        f"postgresql+psycopg2://{db_config['user']}:{db_config['password']}"
+        f"@{db_config['host']}:{db_config['port']}/{db_config['database']}"
     )
-    return con_str
+    return sqlalchemy.create_engine(db_con_str)
 
 
-async def get_db_con() -> asyncpg.Connection:
+def db_execute(query: str, params: dict[str, Any] | None = None) -> None:
     """ """
-    db_config = get_db_config()
-    return await asyncpg.connect(**db_config)  # type: ignore
+    with psycopg2.connect(**get_db_config()) as db_con:
+        with db_con.cursor() as cursor:
+            cursor.execute(query, params)
+            db_con.commit()
+
+
+def db_fetch(query: str, params: dict[str, Any] | None = None) -> Any:
+    """ """
+    with psycopg2.connect(**get_db_config()) as db_con:
+        with db_con.cursor() as cursor:
+            cursor.execute(query, params)
+            rows = cursor.fetchall()
+    return rows
 
 
 async def postgis_to_nx(

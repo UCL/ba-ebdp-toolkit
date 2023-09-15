@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import argparse
-import json
 import os
 import shutil
 import zipfile
@@ -9,52 +8,41 @@ from pathlib import Path
 
 import fiona
 import geopandas as gpd
-from dotenv import load_dotenv
 from shapely import geometry, wkb
-from sqlalchemy import create_engine, text
 from tqdm import tqdm
 
-from src.tools import get_logger
+from src import tools
 
-logger = get_logger(__name__)
-
-load_dotenv()
-
-db_config_json = os.getenv("DB_CONFIG")
-db_config = json.loads(db_config_json)
-connection_string = f"postgresql+psycopg2://{db_config['user']}:{db_config['password']}@{db_config['host']}:{db_config['port']}/{db_config['database']}"
-engine = create_engine(connection_string)
+logger = tools.get_logger(__name__)
 
 
 def load_tree_canopies(dir_path_str: str, schema_name: str, bounds_table_name: str, trees_table_name: str) -> None:
     """ """
     # don't overwrite existing
-    with engine.connect() as connection:
-        table_exists: bool = connection.execute(  # type: ignore
-            text(
-                f"""
-                SELECT EXISTS (
-                    SELECT 1 FROM information_schema.tables
-                        WHERE table_schema = '{schema_name}' 
-                            AND table_name = '{trees_table_name}');
-            """
-            )
-        ).fetchone()[0]
+    table_exists: bool = tools.db_fetch(  # type: ignore
+        f"""
+        SELECT EXISTS (
+            SELECT 1 FROM information_schema.tables
+                WHERE table_schema = '{schema_name}' 
+                    AND table_name = '{trees_table_name}');
+        """
+    )[0][0]
     if table_exists:
         raise IOError(f"Destination schema and table {schema_name}.{trees_table_name} already exists; aborting.")
     # get bounds poly
-    with engine.connect() as connection:
-        bounds_wkb: str = connection.execute(  # type: ignore
-            text(
-                f"""
-                SELECT ST_Union(ST_Buffer(geom, 2000))
-                    FROM {schema_name}.{bounds_table_name};
-            """
-            )
-        ).fetchone()[0]
-    bounds_geom = wkb.loads(bounds_wkb, hex=True)
+    bounds_wkb: str = tools.db_fetch(  # type: ignore
+        f"""
+        SELECT ST_Union(ST_Buffer(geom, 2000))
+            FROM {schema_name}.{bounds_table_name};
+        """
+    )[0][0]
+    bounds_geom: geometry.Polygon = wkb.loads(bounds_wkb, hex=True)  # type: ignore
     if not (isinstance(bounds_geom, geometry.Polygon) or isinstance(bounds_geom, geometry.MultiPolygon)):
-        raise ValueError(f"Encountered {bounds_geom.type} instead of Polygon or MultiPolygon type for bounds.")
+        raise ValueError(
+            f"Encountered {bounds_geom.type} instead of Polygon or MultiPolygon type for bounds."  # type: ignore
+        )
+    # prepare engine for GDF
+    engine = tools.get_sqlalchemy_engine()
     # iter zip files and load if intersecting bounds
     dir_path: Path = Path(dir_path_str)
     unzip_dir = dir_path / "temp_unzipped/"
@@ -74,10 +62,10 @@ def load_tree_canopies(dir_path_str: str, schema_name: str, bounds_table_name: s
                     if file_name.endswith(".gpkg"):
                         full_gpkg_path = str((Path(walk_dir_path) / file_name).resolve())
                         # use fiona for quick bbox check
-                        with fiona.open(full_gpkg_path) as src:
-                            if not geometry.box(*src.bounds).intersects(bounds_geom):
+                        with fiona.open(full_gpkg_path) as src:  # type: ignore
+                            if not geometry.box(*src.bounds).intersects(bounds_geom):  # type: ignore
                                 continue
-                        gdf = gpd.read_file(full_gpkg_path)
+                        gdf = gpd.read_file(full_gpkg_path)  # type: ignore
                         # filter spatially
                         gdf["bbox"] = gdf["geometry"].envelope
                         gdf.set_geometry("bbox", inplace=True)
@@ -99,17 +87,13 @@ def load_tree_canopies(dir_path_str: str, schema_name: str, bounds_table_name: s
             # Delete the unzipped files
             # TODO: why is this raising?
             shutil.rmtree(unzip_dir)
-    with engine.connect() as connection:
-        connection.execute(  # type: ignore
-            text(
-                f"""
-                ALTER TABLE {schema_name}.{trees_table_name} ADD COLUMN fid serial;
-                ALTER TABLE {schema_name}.{trees_table_name} ADD PRIMARY KEY (fid);
-                ALTER TABLE {schema_name}.{trees_table_name} DROP COLUMN temp_id;
-            """
-            )
-        )
-        connection.commit()
+    tools.db_execute(
+        f"""
+        ALTER TABLE {schema_name}.{trees_table_name} ADD COLUMN fid serial;
+        ALTER TABLE {schema_name}.{trees_table_name} ADD PRIMARY KEY (fid);
+        ALTER TABLE {schema_name}.{trees_table_name} DROP COLUMN temp_id;
+        """
+    )
 
 
 if __name__ == "__main__":

@@ -1,43 +1,29 @@
 from __future__ import annotations
 
 import argparse
-import json
 import os
 import shutil
 import subprocess
 import zipfile
 from pathlib import Path
 
-from dotenv import load_dotenv
-from sqlalchemy import create_engine, text
+from src import tools
 
-from src.tools import get_logger
-
-logger = get_logger(__name__)
-
-load_dotenv()
-
-db_config_json = os.getenv("DB_CONFIG")
-db_config = json.loads(db_config_json)
-connection_string = f"postgresql+psycopg2://{db_config['user']}:{db_config['password']}@{db_config['host']}:{db_config['port']}/{db_config['database']}"
-
-engine = create_engine(connection_string)
-os.environ["PGPASSWORD"] = db_config["password"]
+logger = tools.get_logger(__name__)
+db_config = tools.get_db_config()
+os.environ["PGPASSWORD"] = db_config["password"]  # type: ignore
 
 
 def load_bldg_hts(dir_path_str: str, schema_name: str, table_name: str, bin_path: str | None) -> None:
     """ """
-    with engine.connect() as connection:
-        table_exists: bool = connection.execute(  # type: ignore
-            text(
-                f"""
-                SELECT EXISTS (
-                    SELECT 1 FROM information_schema.tables
-                        WHERE table_schema = '{schema_name}' 
-                            AND table_name = '{table_name}');
-            """
-            )
-        ).fetchone()[0]
+    table_exists: bool = tools.db_fetch(
+        f"""
+            SELECT EXISTS (
+                SELECT 1 FROM information_schema.tables
+                    WHERE table_schema = '{schema_name}' 
+                        AND table_name = '{table_name}');
+        """
+    )[0][0]
     if table_exists:
         raise IOError(f"Destination schema and table {schema_name}.{table_name} already exists; aborting.")
     # Loop through each ZIP file and upload TIFs
@@ -76,7 +62,7 @@ def load_bldg_hts(dir_path_str: str, schema_name: str, table_name: str, bin_path
                                     stdout=f,
                                 )
                             subprocess.run(
-                                [
+                                [  # type: ignore
                                     "psql" if bin_path is None else str(Path(bin_path) / "psql"),
                                     "-h",
                                     db_config["host"],
@@ -98,27 +84,23 @@ def load_bldg_hts(dir_path_str: str, schema_name: str, table_name: str, bin_path
             shutil.rmtree(unzip_dir)
             first_file = False
     # add constraints
-    with engine.connect() as connection:
-        connection.execute(
-            text(
-                f"""
-                SELECT AddRasterConstraints(
-                    '{schema_name}'::name, 
-                    '{table_name}'::name, 
-                    'rast'::name,
-                    'blocksize',
-                    'extent',
-                    'num_bands',
-                    'pixel_types',
-                    'srid'
-                );
-                CREATE INDEX {table_name}_rast_gist_idx
-                    ON {schema_name}.{table_name}
-                    USING gist (ST_ConvexHull(rast));
-            """
-            )
-        )
-        connection.commit()
+    tools.db_execute(
+        f"""
+        SELECT AddRasterConstraints(
+            '{schema_name}'::name, 
+            '{table_name}'::name, 
+            'rast'::name,
+            'blocksize',
+            'extent',
+            'num_bands',
+            'pixel_types',
+            'srid'
+        );
+        CREATE INDEX {table_name}_rast_gist_idx
+            ON {schema_name}.{table_name}
+            USING gist (ST_ConvexHull(rast));
+        """
+    )
 
 
 if __name__ == "__main__":

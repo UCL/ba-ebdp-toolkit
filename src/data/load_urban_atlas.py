@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import argparse
-import json
 import os
 import shutil
 import zipfile
@@ -9,52 +8,39 @@ from pathlib import Path
 
 import fiona
 import geopandas as gpd
-from dotenv import load_dotenv
 from shapely import geometry, wkb
-from sqlalchemy import create_engine, text
 from tqdm import tqdm
 
-from src.tools import get_logger
+from src import tools
 
-logger = get_logger(__name__)
-
-load_dotenv()
-
-db_config_json = os.getenv("DB_CONFIG")
-db_config = json.loads(db_config_json)
-connection_string = f"postgresql+psycopg2://{db_config['user']}:{db_config['password']}@{db_config['host']}:{db_config['port']}/{db_config['database']}"
-engine = create_engine(connection_string)
+logger = tools.get_logger(__name__)
 
 
 def load_urban_blocks(dir_path_str: str, schema_name: str, bounds_table_name: str, atlas_table_name: str) -> None:
     """ """
     # don't overwrite existing
-    with engine.connect() as connection:
-        table_exists: bool = connection.execute(  # type: ignore
-            text(
-                f"""
-                SELECT EXISTS (
-                    SELECT 1 FROM information_schema.tables
-                        WHERE table_schema = '{schema_name}' 
-                            AND table_name = '{atlas_table_name}');
-            """
-            )
-        ).fetchone()[0]
+    table_exists: bool = tools.db_fetch(
+        f"""
+        SELECT EXISTS (
+            SELECT 1 FROM information_schema.tables
+                WHERE table_schema = '{schema_name}' 
+                    AND table_name = '{atlas_table_name}');
+        """
+    )[0][0]
     if table_exists:
         raise IOError(f"Destination schema and table {schema_name}.{atlas_table_name} already exists; aborting.")
     # get bounds poly
-    with engine.connect() as connection:
-        bounds_wkb: str = connection.execute(  # type: ignore
-            text(
-                f"""
-                SELECT ST_Union(ST_Buffer(geom, 2000))
-                    FROM {schema_name}.{bounds_table_name};
-            """
-            )
-        ).fetchone()[0]
-    bounds_geom = wkb.loads(bounds_wkb, hex=True)
+    bounds_wkb: str = tools.db_fetch(
+        f"""
+        SELECT ST_Union(ST_Buffer(geom, 2000))
+            FROM {schema_name}.{bounds_table_name};
+        """
+    )[0][0]
+    bounds_geom: geometry.Polygon = wkb.loads(bounds_wkb, hex=True)  # type: ignore
     if not (isinstance(bounds_geom, geometry.Polygon) or isinstance(bounds_geom, geometry.MultiPolygon)):
-        raise ValueError(f"Encountered {bounds_geom.type} instead of Polygon or MultiPolygon type for bounds.")
+        raise ValueError(
+            f"Encountered {bounds_geom.type} instead of Polygon or MultiPolygon type for bounds."  # type: ignore
+        )
 
     filter_classes = [
         "Airports",
@@ -70,11 +56,12 @@ def load_urban_blocks(dir_path_str: str, schema_name: str, bounds_table_name: st
         "Port areas",
         "Sports and leisure facilities",
     ]
-
+    # prepare engine for GPD
+    engine = tools.get_sqlalchemy_engine()
     # iter zip files and load if intersecting bounds
     dir_path: Path = Path(dir_path_str)
     unzip_dir = dir_path / "temp_unzipped/"
-    for zip_file_name in tqdm(os.listdir(dir_path)):
+    for zip_file_name in tqdm(os.listdir(dir_path)):  # type: ignore
         if zip_file_name.endswith(".zip"):
             # Create directory for unzipped files
             if os.path.exists(unzip_dir):
@@ -126,17 +113,13 @@ def load_urban_blocks(dir_path_str: str, schema_name: str, bounds_table_name: st
                         )
             # Delete the unzipped files
             shutil.rmtree(unzip_dir)
-    with engine.connect() as connection:
-        connection.execute(  # type: ignore
-            text(
-                f"""
-                ALTER TABLE {schema_name}.{atlas_table_name} ADD COLUMN fid serial;
-                ALTER TABLE {schema_name}.{atlas_table_name} ADD PRIMARY KEY (fid);
-                ALTER TABLE {schema_name}.{atlas_table_name} DROP COLUMN temp_id;
-            """
-            )
-        )
-        connection.commit()
+    tools.db_execute(
+        f"""
+        ALTER TABLE {schema_name}.{atlas_table_name} ADD COLUMN fid serial;
+        ALTER TABLE {schema_name}.{atlas_table_name} ADD PRIMARY KEY (fid);
+        ALTER TABLE {schema_name}.{atlas_table_name} DROP COLUMN temp_id;
+    """
+    )
 
 
 if __name__ == "__main__":

@@ -5,12 +5,13 @@ import json
 from functools import partial
 
 import geopandas as gpd
+import matplotlib.pyplot as plt
 import networkx as nx
+from pyproj import Transformer
 from shapely import geometry
 from shapely.ops import transform
-from pyproj import Transformer
 from tqdm import tqdm
-import matplotlib.pyplot as plt
+
 from src import tools
 
 logger = tools.get_logger(__name__)

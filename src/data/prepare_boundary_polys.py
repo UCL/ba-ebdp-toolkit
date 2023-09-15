@@ -1,40 +1,27 @@
 from __future__ import annotations
 
 import argparse
-import json
-import os
 
 import geopandas as gpd
-from dotenv import load_dotenv
 from rasterio.features import shapes
 from rasterio.io import MemoryFile
 from shapely import geometry
-from sqlalchemy import create_engine, text
 
 from src import tools
 
-load_dotenv()
-
 logger = tools.get_logger(__name__)
-
-db_config_json = os.getenv("DB_CONFIG")
-db_config = json.loads(db_config_json)
-connection_string = f"postgresql+psycopg2://{db_config['user']}:{db_config['password']}@{db_config['host']}:{db_config['port']}/{db_config['database']}"
-engine = create_engine(connection_string)
+engine = tools.get_sqlalchemy_engine()
 
 
 def bound_polys(schema_name: str, bounds_raster_table_name: str, bounds_table_name: str) -> None:
     # may need raster support to be enabled on DB
     # fetch eu high density clusters
-    with engine.connect() as connection:
-        raster_result = connection.execute(  # type: ignore
-            text(
-                f"""
-            SELECT ST_AsTiff(ST_Union(r.rast))
-                FROM {schema_name}.{bounds_raster_table_name} r;
-            """
-            )
-        ).fetchone()[0]
+    raster_result = tools.db_fetch(
+        f"""
+        SELECT ST_AsTiff(ST_Union(r.rast))
+            FROM {schema_name}.{bounds_raster_table_name} r;
+        """
+    )[0][0]
     # extract polygons from raster
     polys: list[geometry.Polygon] = []
     with MemoryFile(raster_result) as memfile:
