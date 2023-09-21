@@ -11,12 +11,15 @@ Ensure that the `postGIS` and other basic extensions are enabled.
 It may be necessary to configure raster support, for example:
 
 ```sql
+CREATE EXTENSION postgis;
+CREATE EXTENSION postgis_topology;
+CREATE EXTENSION postgis_raster;
 SELECT postgis_gdal_version();
 -- set output rasters to true if necessary
 SHOW postgis.enable_outdb_rasters;
 SET postgis.enable_outdb_rasters TO True;
 -- enable GDAL drivers if necessary
-ALTER DATABASE my_db SET postgis.gdal_enabled_drivers TO 'GTiff';
+ALTER DATABASE t2e SET postgis.gdal_enabled_drivers TO 'GTiff';
 SELECT pg_reload_conf();
 SELECT short_name FROM ST_GDALDrivers();
 ```
@@ -100,7 +103,7 @@ python -m src.data.load_urban_atlas_trees "./temp/urban atlas trees" eu bounds t
 - Run the `load_bldg_hts_raster.py` script to upload the data. Provide the path to the input directory with the zipped data files. Also specify the schema, table name, and the optional argument `--bin_path` to provide a path to the `bin` directory for your `postgres` installation. For example:
 
 ```bash
-python -m src.data.load_bldg_hts_raster "./temp/Digital height Model EU" eu bldg_hts --bin_path /Applications/Postgres.app/Contents/Versions/15/bin/
+python -m src.data.load_bldg_hts_raster "./temp/Digital height Model EU" eu bldg_hts --bin_path /Applications/Postgres.app/Contents/Versions/16/bin/
 ```
 
 ## Downloading Overture data

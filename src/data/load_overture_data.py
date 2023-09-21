@@ -25,9 +25,7 @@ from shapely import geometry, wkb
 from src import tools
 
 logger = tools.get_logger(__name__)
-# iter bounds
-# clip downloads
-# upload
+engine = tools.get_sqlalchemy_engine()
 
 
 def snip_extents(
@@ -71,8 +69,9 @@ def process_bounds(
     overture_edges_path: str,
     overture_places_path: str,
     overture_buildings_path: str,
-    schema_name: str,
+    bounds_schema_name: str,
     bounds_table_name: str,
+    overture_schema_name: str,
     bin_path: str | None = None,
 ) -> None:
     """ """
@@ -91,6 +90,9 @@ def process_bounds(
     nodes_gdf.rename(columns={"geometry": "geom"}, inplace=True)
     nodes_gdf.set_geometry("geom", inplace=True)
     nodes_gdf = nodes_gdf[nodes_gdf["geom"].apply(lambda x: x.within(extents_geom_large))]
+    nodes_gdf.to_crs(3035).to_postgis(
+        "overture_nodes", engine, if_exists="append", schema=schema_name, index=True, index_label="fid"
+    )
     print("here")
 
 
@@ -109,4 +111,5 @@ if __name__ == "__main__":
         overture_buildings_path,
         "eu",
         "bounds",
+        "overture",
     )

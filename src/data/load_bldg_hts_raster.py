@@ -71,7 +71,7 @@ def load_bldg_hts(dir_path_str: str, schema_name: str, table_name: str, bin_path
                                     "-d",
                                     db_config["database"],
                                     "-p",
-                                    db_config["port"],
+                                    str(db_config["port"]),
                                     "-f",
                                     sql_path,
                                 ],
@@ -108,21 +108,23 @@ if __name__ == "__main__":
     Examples are run from the project folder (the folder containing src)
     python -m src.data.load_bldg_hts_raster "./temp/Digital height Model EU" eu bldg_hts /Applications/Postgres.app/Contents/Versions/15/bin/
     """
-    parser = argparse.ArgumentParser(description="Load building heights raster data.")
-    parser.add_argument("data_dir_path", type=str, help="Input data directory with zipped data files.")
-    parser.add_argument("schema_name", type=str, help="Schema name.")
-    parser.add_argument("table_name", type=str, help="Table name.")
-    parser.add_argument(
-        "--bin_path", type=str, required=False, default=None, help="Optional 'bin' path for raster2pgsql and psql."
-    )
-    args = parser.parse_args()
-    logger.info(f"Loading building heights data from path: {args.data_dir_path}")
-    data_dir_path = Path(args.data_dir_path)
-    if not data_dir_path.exists():
-        raise IOError("Input directory does not exist")
-    if not data_dir_path.is_dir():
-        raise IOError("Expected input directory, not a file name")
-    load_bldg_hts(args.data_dir_path, args.schema_name, args.table_name, args.bin_path)
-    # load_bldg_hts(
-    #     "./temp/Digital Height Model EU", "eu", "bldg_hts", "/Applications/Postgres.app/Contents/Versions/15/bin/"
-    # )
+    if True:
+        parser = argparse.ArgumentParser(description="Load building heights raster data.")
+        parser.add_argument("data_dir_path", type=str, help="Input data directory with zipped data files.")
+        parser.add_argument("schema_name", type=str, help="Schema name.")
+        parser.add_argument("table_name", type=str, help="Table name.")
+        parser.add_argument(
+            "--bin_path", type=str, required=False, default=None, help="Optional 'bin' path for raster2pgsql and psql."
+        )
+        args = parser.parse_args()
+        logger.info(f"Loading building heights data from path: {args.data_dir_path}")
+        data_dir_path = Path(args.data_dir_path)
+        if not data_dir_path.exists():
+            raise IOError("Input directory does not exist")
+        if not data_dir_path.is_dir():
+            raise IOError("Expected input directory, not a file name")
+        load_bldg_hts(args.data_dir_path, args.schema_name, args.table_name, args.bin_path)
+    else:
+        load_bldg_hts(
+            "./temp/Digital Height Model EU", "eu", "bldg_hts", "/Applications/Postgres.app/Contents/Versions/16/bin/"
+        )
