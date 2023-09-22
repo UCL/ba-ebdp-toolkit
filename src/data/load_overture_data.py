@@ -416,7 +416,7 @@ if __name__ == "__main__":
     """
     Examples are run from the project folder (the folder containing src)
     python -m src.data.load_overture_data 783 load_overture_networks eu bounds overture geom_10000 --overture_nodes_path='temp/eu_nodes.gpkg' --overture_edges_path='temp/eu_edges.gpkg' --overwrite=True
-    python -m src.data.load_overture_data all load_overture_places eu bounds overture geom_2000 --overture_places_path='temp/eu_places.gpkg' --overwrite=True
+    python -m src.data.load_overture_data 783 load_overture_places eu bounds overture geom_2000 --overture_places_path='temp/eu_places.gpkg' --overwrite=True
     python -m src.data.load_overture_data 783 load_overture_buildings eu bounds overture geom_2000  --overture_buildings_path='temp/eu_buildings.gpkg' --overwrite=True
     """
     if True:
