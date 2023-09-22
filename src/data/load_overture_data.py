@@ -88,6 +88,7 @@ def fetch_buffered_geoms_4326(
 def snip_extents(
     path: str,
     bounds_buff: geometry.Polygon,
+    path_key: str,
     bin_path: str | None = None,
 ) -> gpd.GeoDataFrame:
     """ """
@@ -97,7 +98,7 @@ def snip_extents(
         raise ValueError(f'Expected file with extension of ".gpkg": {input_path}')
     if not input_path.exists():
         raise ValueError(f"Input path does not exist: {input_path}")
-    staging_dir = input_path.parent / "temp_snip"
+    staging_dir = input_path.parent / f"temp_snip_{path_key}"
     if staging_dir.exists():
         shutil.rmtree(staging_dir)
     os.makedirs(staging_dir)
@@ -147,7 +148,7 @@ def process_extent_network(
     """ """
     bounds_geom: geometry.Polygon = wkb.loads(bounds_buff_wkb)  # type: ignore
     # NODES
-    nodes_gdf = snip_extents(overture_nodes_path, bounds_geom, bin_path)
+    nodes_gdf = snip_extents(overture_nodes_path, bounds_geom, "nodes", bin_path)
     nodes_gdf.set_index("id", inplace=True)
     nodes_gdf.rename(columns={"geometry": "geom"}, inplace=True)
     nodes_gdf.set_geometry("geom", inplace=True)
@@ -166,7 +167,7 @@ def process_extent_network(
                 """
     )
     # EDGES
-    edges_gdf = snip_extents(overture_edges_path, bounds_geom, bin_path)
+    edges_gdf = snip_extents(overture_edges_path, bounds_geom, "edges", bin_path)
     edges_gdf.set_index("id", inplace=True)
     edges_gdf.rename(columns={"geometry": "geom"}, inplace=True)
     edges_gdf.set_geometry("geom", inplace=True)
@@ -254,7 +255,7 @@ def process_extent_places(
 ):
     """ """
     bounds_geom: geometry.Polygon = wkb.loads(bounds_buff_wkb)  # type: ignore
-    places_gdf = snip_extents(overture_places_path, bounds_geom, bin_path)
+    places_gdf = snip_extents(overture_places_path, bounds_geom, "places", bin_path)
     places_gdf.set_index("id", inplace=True)
     places_gdf.rename(columns={"geometry": "geom"}, inplace=True)
     places_gdf.set_geometry("geom", inplace=True)
@@ -358,7 +359,7 @@ def process_extent_buildings(
 ):
     # BUILDINGS
     bounds_geom: geometry.Polygon = wkb.loads(bounds_buff_wkb)  # type: ignore
-    buildings_gdf = snip_extents(overture_buildings_path, bounds_geom, bin_path)
+    buildings_gdf = snip_extents(overture_buildings_path, bounds_geom, "bldgs", bin_path)
     buildings_gdf.set_index("id", inplace=True)
     buildings_gdf.rename(columns={"geometry": "geom"}, inplace=True)
     buildings_gdf.set_geometry("geom", inplace=True)
@@ -415,7 +416,7 @@ if __name__ == "__main__":
     """
     Examples are run from the project folder (the folder containing src)
     python -m src.data.load_overture_data 783 load_overture_networks eu bounds overture geom_10000 --overture_nodes_path='temp/eu_nodes.gpkg' --overture_edges_path='temp/eu_edges.gpkg' --overwrite=True
-    python -m src.data.load_overture_data 783 load_overture_places eu bounds overture geom_2000 --overture_places_path='temp/eu_places.gpkg' --overwrite=True
+    python -m src.data.load_overture_data all load_overture_places eu bounds overture geom_2000 --overture_places_path='temp/eu_places.gpkg' --overwrite=True
     python -m src.data.load_overture_data 783 load_overture_buildings eu bounds overture geom_2000  --overture_buildings_path='temp/eu_buildings.gpkg' --overwrite=True
     """
     if True:
