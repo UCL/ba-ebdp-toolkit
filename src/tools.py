@@ -51,7 +51,7 @@ def get_sqlalchemy_engine() -> sqlalchemy.engine.Engine:
     return sqlalchemy.create_engine(db_con_str)
 
 
-def db_execute(query: str, params: dict[str, Any] | None = None) -> None:
+def db_execute(query: str, params: tuple[Any] | None = None) -> None:
     """ """
     with psycopg2.connect(**get_db_config()) as db_con:
         with db_con.cursor() as cursor:
@@ -59,7 +59,7 @@ def db_execute(query: str, params: dict[str, Any] | None = None) -> None:
             db_con.commit()
 
 
-def db_fetch(query: str, params: dict[str, Any] | None = None) -> Any:
+def db_fetch(query: str, params: tuple[Any] | None = None) -> Any:
     """ """
     with psycopg2.connect(**get_db_config()) as db_con:
         with db_con.cursor() as cursor:
