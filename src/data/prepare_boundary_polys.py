@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 
 import geopandas as gpd
+from geoalchemy2 import Geometry
 from rasterio.features import shapes
 from rasterio.io import MemoryFile
 from shapely import geometry
@@ -43,9 +44,33 @@ def bound_polys(schema_name: str, bounds_raster_table_name: str, bounds_table_na
     # generate the gdf
     data = {"geom": polys}
     bounds_gdf = gpd.GeoDataFrame(data, geometry="geom", crs=dataset.crs)
+    bounds_gdf["geom_2000"] = bounds_gdf["geom"].buffer(2000)
+    bounds_gdf["geom_10000"] = bounds_gdf["geom"].buffer(10000)
     # write to DB
     bounds_gdf.to_postgis(
-        bounds_table_name, engine, if_exists="replace", schema=schema_name, index=True, index_label="fid"
+        bounds_table_name,
+        engine,
+        if_exists="replace",
+        schema=schema_name,
+        index=True,
+        index_label="fid",
+        dtype={
+            "geom_2000": Geometry(geometry_type="POLYGON", srid=3035),
+            "geom_10000": Geometry(geometry_type="POLYGON", srid=3035),
+        },
+    )
+    # add indices
+    tools.db_execute(
+        f"""
+        CREATE INDEX {bounds_table_name}_2000_geom_idx
+            ON {schema_name}.{bounds_table_name} USING GIST (geom_2000);
+                     """
+    )
+    tools.db_execute(
+        f"""
+        CREATE INDEX {bounds_table_name}_10000_geom_idx
+            ON {schema_name}.{bounds_table_name} USING GIST (geom_10000);
+                     """
     )
 
 
@@ -54,10 +79,13 @@ if __name__ == "__main__":
     Examples are run from the project folder (the folder containing src)
     python -m src.data.prepare_boundary_polys eu hdens_clusters bounds
     """
-    parser = argparse.ArgumentParser(description="Load building heights raster data.")
-    parser.add_argument("schema_name", type=str, help="Schema name.")
-    parser.add_argument("bounds_raster_table_name", type=str, help="Table name for boundaries raster.")
-    parser.add_argument("bounds_table_name", type=str, help="Table name for output boundary polygons.")
-    args = parser.parse_args()
     logger.info(f"Converting raster boundaries to polygons.")
-    bound_polys(args.schema_name, args.bounds_raster_table_name, args.bounds_table_name)
+    if True:
+        parser = argparse.ArgumentParser(description="Load building heights raster data.")
+        parser.add_argument("schema_name", type=str, help="Schema name.")
+        parser.add_argument("bounds_raster_table_name", type=str, help="Table name for boundaries raster.")
+        parser.add_argument("bounds_table_name", type=str, help="Table name for output boundary polygons.")
+        args = parser.parse_args()
+        bound_polys(args.schema_name, args.bounds_raster_table_name, args.bounds_table_name)
+    else:
+        bound_polys("eu", "hdens_clusters", "bounds")
