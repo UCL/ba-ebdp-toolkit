@@ -19,6 +19,7 @@ import json
 import os
 import shutil
 import subprocess
+import time
 from pathlib import Path
 
 import geopandas as gpd
@@ -102,19 +103,30 @@ def snip_extents(
     os.makedirs(staging_dir)
     snip_path = staging_dir / f"snip_{input_path.name}"
     # snip
-    subprocess.run(
-        [  # type: ignore
-            "ogr2ogr" if bin_path is None else str(Path(bin_path) / "ogr2ogr"),
-            "-spat",
-            str(bounds_buff.bounds[0]),
-            str(bounds_buff.bounds[1]),
-            str(bounds_buff.bounds[2]),
-            str(bounds_buff.bounds[3]),
-            str(snip_path),
-            str(input_path),
-        ],
-        check=True,
-    )
+    attempts = 3
+    while attempts > 0:
+        attempts -= 1
+        try:
+            subprocess.run(
+                [  # type: ignore
+                    "ogr2ogr" if bin_path is None else str(Path(bin_path) / "ogr2ogr"),
+                    "-spat",
+                    str(bounds_buff.bounds[0]),
+                    str(bounds_buff.bounds[1]),
+                    str(bounds_buff.bounds[2]),
+                    str(bounds_buff.bounds[3]),
+                    str(snip_path),
+                    str(input_path),
+                ],
+                check=True,
+            )
+            break
+        except Exception as err:
+            if attempts > 0:
+                logger.error(f"Encountered error with ogr2ogr, reattempting after 1s; {attempts} attempts remaining.")
+                time.sleep(1)  # try sleeping to give time for database locks to release
+            else:
+                raise err
     gdf = gpd.read_file(snip_path)
     # cleanup temp directory
     shutil.rmtree(staging_dir)
@@ -458,7 +470,7 @@ if __name__ == "__main__":
                 WITH fids AS (SELECT fid FROM {args.bounds_schema}.{args.bounds_table} ORDER BY fid ASC)
                 SELECT array_agg(fid) FROM fids
                 """
-            )
+            )[0][0]
         else:
             bounds_fids = [int(bounds_fid)]
         if args.loader == "load_overture_networks":
@@ -504,7 +516,13 @@ if __name__ == "__main__":
                 args.overwrite,
             )
     else:
-        bounds_fids = [783, 743, 751, 758, 761, 763, 764, 766, 767, 768, 769, 771]
+        # bounds_fids = [783, 743, 751, 758, 761, 763, 764, 766, 767, 768, 769, 771]
+        bounds_fids = tools.db_fetch(
+            f"""
+                WITH fids AS (SELECT fid FROM eu.bounds ORDER BY fid ASC)
+                SELECT array_agg(fid) FROM fids
+                """
+        )[0][0]
         # load_overture_networks(
         #     bounds_fids,
         #     "temp/eu_nodes.gpkg",
@@ -515,9 +533,9 @@ if __name__ == "__main__":
         #     "geom_10000",
         #     overwrite=True,
         # )
-        # load_overture_places(
-        #     bounds_fids, "temp/eu_places.gpkg", "eu", "bounds", "overture", "geom_2000", overwrite=True
-        # )
-        load_overture_buildings(
-            bounds_fids, "temp/eu_buildings.gpkg", "eu", "bounds", "overture", "geom_2000", overwrite=True
+        load_overture_places(
+            bounds_fids, "temp/eu_places.gpkg", "eu", "bounds", "overture", "geom_2000", overwrite=True
         )
+        # load_overture_buildings(
+        #     bounds_fids, "temp/eu_buildings.gpkg", "eu", "bounds", "overture", "geom_2000", overwrite=True
+        # )
