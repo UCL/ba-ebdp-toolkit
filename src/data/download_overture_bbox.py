@@ -7,7 +7,7 @@ import threading
 import time
 from pathlib import Path
 
-from src.data import overture_loaders
+from data import overture_downloaders
 from src.tools import get_logger
 
 logger = get_logger(__name__)
@@ -39,25 +39,25 @@ if __name__ == "__main__":
     # run queries
     # space the threads starts otherwise they trip over each other with DuckDB in memory database initialisation
     load_buildings = threading.Thread(
-        target=overture_loaders.load_buildings,
+        target=overture_downloaders.load_buildings,
         args=(out_path, args.file_prefix, args.min_x, args.min_y, args.max_x, args.max_y),
     )
     load_buildings.start()
     time.sleep(1)
     load_places = threading.Thread(
-        target=overture_loaders.load_places,
+        target=overture_downloaders.load_places,
         args=(out_path, args.file_prefix, args.min_x, args.min_y, args.max_x, args.max_y),
     )
     load_places.start()
     time.sleep(1)
     load_nodes = threading.Thread(
-        target=overture_loaders.load_nodes,
+        target=overture_downloaders.load_nodes,
         args=(out_path, args.file_prefix, args.min_x, args.min_y, args.max_x, args.max_y),
     )
     load_nodes.start()
     time.sleep(1)
     load_edges = threading.Thread(
-        target=overture_loaders.load_edges,
+        target=overture_downloaders.load_edges,
         args=(out_path, args.file_prefix, args.min_x, args.min_y, args.max_x, args.max_y),
     )
     load_edges.start()
