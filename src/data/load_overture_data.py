@@ -1,3 +1,4 @@
+# pyright: basic
 """
 DuckDB doesn't set projection so set manually; so, if wanted, these need to be set manually with `ogr2ogr`, for example:
 
@@ -31,40 +32,8 @@ logger = tools.get_logger(__name__)
 engine = tools.get_sqlalchemy_engine()
 
 
-def check_exists(overwrite: bool, overture_schema_name: str, overture_table_name: str):
-    """ """
-    if overwrite is False:
-        table_exists: bool = tools.db_fetch(  # type: ignore
-            f"""
-            SELECT EXISTS (
-                SELECT 1 FROM information_schema.tables
-                    WHERE table_schema = '{overture_schema_name}' 
-                        AND table_name = '{overture_table_name}');
-            """
-        )[0][0]
-        if table_exists:
-            raise IOError(
-                f"Destination schema and table {overture_schema_name}.{overture_table_name} already exists; aborting."
-            )
-    else:
-        tools.db_execute(  # type: ignore
-            f"""
-            DROP TABLE IF EXISTS {overture_schema_name}.{overture_table_name};
-            """
-        )
-
-
-def prepare_schema(overture_schema_name: str):
-    """ """
-    tools.db_execute(  # type: ignore
-        f"""
-        CREATE SCHEMA IF NOT EXISTS {overture_schema_name};
-        """
-    )
-
-
-def fetch_buffered_geoms_4326(
-    buffer_col: str, bounds_schema_name: str, bounds_table_name: str, bounds_fids: list[int]
+def fetch_unioned_extents_4326(
+    buffer_col: str, bounds_schema: str, bounds_table: str, bounds_fids: list[int]
 ) -> list[str]:
     """ """
     # start with network layers - use union because of overlaps
@@ -72,7 +41,7 @@ def fetch_buffered_geoms_4326(
         f"""
         WITH union_geoms AS (
             SELECT (ST_Dump(ST_Union({buffer_col}))).geom
-            FROM {bounds_schema_name}.{bounds_table_name}
+            FROM {bounds_schema}.{bounds_table}
             WHERE fid in %s
         )
         SELECT ST_Envelope(ST_Transform(geom, 4326))
@@ -137,8 +106,8 @@ def process_extent_network(
     bounds_buff_wkb: str,
     overture_nodes_path: str,
     overture_edges_path: str,
-    bounds_schema_name: str,
-    bounds_table_name: str,
+    bounds_schema: str,
+    bounds_table: str,
     overture_schema_name: str,
     buffer_col: str,
     bin_path: str | None = None,
@@ -159,7 +128,7 @@ def process_extent_network(
         DELETE FROM {overture_schema_name}.overture_nodes nd
         WHERE NOT EXISTS (
             SELECT 1 
-            FROM {bounds_schema_name}.{bounds_table_name} bb
+            FROM {bounds_schema}.{bounds_table} bb
             WHERE ST_Contains({buffer_col}, nd.geom)
         );
                 """
@@ -205,7 +174,7 @@ def process_extent_network(
         DELETE FROM {overture_schema_name}.overture_edges nd
         WHERE NOT EXISTS (
             SELECT 1 
-            FROM {bounds_schema_name}.{bounds_table_name} bb
+            FROM {bounds_schema}.{bounds_table} bb
             WHERE ST_Contains({buffer_col}, nd.geom)
         );
                 """
@@ -216,8 +185,8 @@ def load_overture_networks(
     bounds_fids: list[int],
     overture_nodes_path: str,
     overture_edges_path: str,
-    bounds_schema_name: str,
-    bounds_table_name: str,
+    bounds_schema: str,
+    bounds_table: str,
     overture_schema_name: str,
     buffer_col: str,
     bin_path: str | None = None,
@@ -225,17 +194,17 @@ def load_overture_networks(
 ) -> None:
     """ """
     logger.info("Loading overture networks")
-    check_exists(overwrite, overture_schema_name, "overture_nodes")
-    check_exists(overwrite, overture_schema_name, "overture_edges")
-    prepare_schema(overture_schema_name)
-    bounds_buffs = fetch_buffered_geoms_4326(buffer_col, bounds_schema_name, bounds_table_name, bounds_fids)
+    tools.check_exists(overwrite, overture_schema_name, "overture_nodes")
+    tools.check_exists(overwrite, overture_schema_name, "overture_edges")
+    tools.prepare_schema(overture_schema_name)
+    bounds_buffs = fetch_unioned_extents_4326(buffer_col, bounds_schema, bounds_table, bounds_fids)
     for bounds_row in tqdm(bounds_buffs):
         process_extent_network(
             bounds_row,
             overture_nodes_path,
             overture_edges_path,
-            bounds_schema_name,
-            bounds_table_name,
+            bounds_schema,
+            bounds_table,
             overture_schema_name,
             buffer_col,
             bin_path,
@@ -245,8 +214,8 @@ def load_overture_networks(
 def process_extent_places(
     bounds_buff_wkb: str,
     overture_places_path: str,
-    bounds_schema_name: str,
-    bounds_table_name: str,
+    bounds_schema: str,
+    bounds_table: str,
     overture_schema_name: str,
     buffer_col: str,
     bin_path: str | None = None,
@@ -312,7 +281,7 @@ def process_extent_places(
         DELETE FROM {overture_schema_name}.overture_places nd
         WHERE NOT EXISTS (
             SELECT 1 
-            FROM {bounds_schema_name}.{bounds_table_name} bb
+            FROM {bounds_schema}.{bounds_table} bb
             WHERE ST_Contains({buffer_col}, nd.geom)
         );
                    """
@@ -322,8 +291,8 @@ def process_extent_places(
 def load_overture_places(
     bounds_fids: list[int],
     overture_places_path: str,
-    bounds_schema_name: str,
-    bounds_table_name: str,
+    bounds_schema: str,
+    bounds_table: str,
     overture_schema_name: str,
     buffer_col: str,
     bin_path: str | None = None,
@@ -331,15 +300,15 @@ def load_overture_places(
 ) -> None:
     """ """
     logger.info("Loading overture places")
-    check_exists(overwrite, overture_schema_name, "overture_places")
-    prepare_schema(overture_schema_name)
-    bounds_buffs = fetch_buffered_geoms_4326(buffer_col, bounds_schema_name, bounds_table_name, bounds_fids)
+    tools.check_exists(overwrite, overture_schema_name, "overture_places")
+    tools.prepare_schema(overture_schema_name)
+    bounds_buffs = fetch_unioned_extents_4326(buffer_col, bounds_schema, bounds_table, bounds_fids)
     for bounds_row in tqdm(bounds_buffs):
         process_extent_places(
             bounds_row,
             overture_places_path,
-            bounds_schema_name,
-            bounds_table_name,
+            bounds_schema,
+            bounds_table,
             overture_schema_name,
             buffer_col,
             bin_path,
@@ -349,8 +318,8 @@ def load_overture_places(
 def process_extent_buildings(
     bounds_buff_wkb: str,
     overture_buildings_path: str,
-    bounds_schema_name: str,
-    bounds_table_name: str,
+    bounds_schema: str,
+    bounds_table: str,
     overture_schema_name: str,
     buffer_col: str,
     bin_path: str | None = None,
@@ -376,7 +345,7 @@ def process_extent_buildings(
         DELETE FROM {overture_schema_name}.overture_buildings nd
         WHERE NOT EXISTS (
             SELECT 1 
-            FROM {bounds_schema_name}.{bounds_table_name} bb
+            FROM {bounds_schema}.{bounds_table} bb
             WHERE ST_Contains({buffer_col}, nd.geom)
         );
                    """
@@ -386,8 +355,8 @@ def process_extent_buildings(
 def load_overture_buildings(
     bounds_fids: list[int],
     overture_buildings_path: str,
-    bounds_schema_name: str,
-    bounds_table_name: str,
+    bounds_schema: str,
+    bounds_table: str,
     overture_schema_name: str,
     buffer_col: str,
     bin_path: str | None = None,
@@ -395,15 +364,15 @@ def load_overture_buildings(
 ) -> None:
     """ """
     logger.info("Loading overture buildings")
-    check_exists(overwrite, overture_schema_name, "overture_buildings")
-    prepare_schema(overture_schema_name)
-    bounds_buffs = fetch_buffered_geoms_4326(buffer_col, bounds_schema_name, bounds_table_name, bounds_fids)
+    tools.check_exists(overwrite, overture_schema_name, "overture_buildings")
+    tools.prepare_schema(overture_schema_name)
+    bounds_buffs = fetch_unioned_extents_4326(buffer_col, bounds_schema, bounds_table, bounds_fids)
     for bounds_row in tqdm(bounds_buffs):
         process_extent_buildings(
             bounds_row,
             overture_buildings_path,
-            bounds_schema_name,
-            bounds_table_name,
+            bounds_schema,
+            bounds_table,
             overture_schema_name,
             buffer_col,
             bin_path,
@@ -413,9 +382,9 @@ def load_overture_buildings(
 if __name__ == "__main__":
     """
     Examples are run from the project folder (the folder containing src)
-    python -m src.data.load_overture_data 783 load_overture_networks eu bounds overture geom_10000 --overture_nodes_path='temp/eu_nodes.gpkg' --overture_edges_path='temp/eu_edges.gpkg' --overwrite=True
-    python -m src.data.load_overture_data 783 load_overture_places eu bounds overture geom_2000 --overture_places_path='temp/eu_places.gpkg' --overwrite=True
-    python -m src.data.load_overture_data 783 load_overture_buildings eu bounds overture geom_2000  --overture_buildings_path='temp/eu_buildings.gpkg' --overwrite=True
+    python -m src.data.load_overture_data 783 load_overture_networks eu bounds overture geom_10000 --overture_nodes_path='temp/eu_nodes.gpkg' --overture_edges_path='temp/eu_edges.gpkg' --overwrite=False
+    python -m src.data.load_overture_data 783 load_overture_places eu bounds overture geom_2000 --overture_places_path='temp/eu_places.gpkg' --overwrite=False
+    python -m src.data.load_overture_data 783 load_overture_buildings eu bounds overture geom_2000  --overture_buildings_path='temp/eu_buildings.gpkg' --overwrite=False
     """
     if True:
         parser = argparse.ArgumentParser(description="Load overture datasets to DB.")
@@ -530,11 +499,11 @@ if __name__ == "__main__":
         #     "bounds",
         #     "overture",
         #     "geom_10000",
-        #     overwrite=True,
+        #     overwrite=False,
         # )
         load_overture_places(
-            bounds_fids, "temp/eu_places.gpkg", "eu", "bounds", "overture", "geom_2000", overwrite=True
+            bounds_fids, "temp/eu_places.gpkg", "eu", "bounds", "overture", "geom_2000", overwrite=False
         )
         # load_overture_buildings(
-        #     bounds_fids, "temp/eu_buildings.gpkg", "eu", "bounds", "overture", "geom_2000", overwrite=True
+        #     bounds_fids, "temp/eu_buildings.gpkg", "eu", "bounds", "overture", "geom_2000", overwrite=False
         # )
