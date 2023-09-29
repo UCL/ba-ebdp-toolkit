@@ -1,6 +1,4 @@
 """ """
-from __future__ import annotations
-
 import geopandas as gpd
 import networkx as nx
 from cityseer.tools import graphs
