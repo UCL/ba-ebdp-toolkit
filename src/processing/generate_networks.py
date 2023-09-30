@@ -46,6 +46,7 @@ def process_bounds(
     bounds_fids: list[int],
     bounds_schema: str,
     bounds_table: str,
+    bounds_buffer_col: str,
     overture_schema: str,
     output_schema: str,
 ):
@@ -54,9 +55,14 @@ def process_bounds(
     # this avoids duplication
     nodes_gdf = gpd.read_postgis(
         f"""
-        SELECT n.fid, n.geom as geom
-        FROM {overture_schema}.overture_nodes n, {bounds_schema}.{bounds_table} b
-        WHERE b.fid = ANY(%s) AND ST_Intersects(b.geom, n.geom)
+        WITH bounds AS (
+            SELECT ST_Union({bounds_buffer_col}) as geom
+            FROM {bounds_schema}.{bounds_table}
+            WHERE fid = ANY(%s)
+        )
+        SELECT n.fid, n.geom
+        FROM {overture_schema}.overture_nodes n, bounds b
+        WHERE ST_Intersects(b.geom, n.geom)
         """,
         engine,
         index_col="fid",
@@ -65,9 +71,14 @@ def process_bounds(
     )
     edges_gdf = gpd.read_postgis(
         f"""
-        SELECT e.fid, connectors, road_class, surface, level, e.geom as geom
-        FROM {overture_schema}.overture_edges e, {bounds_schema}.{bounds_table} b
-        WHERE b.fid = ANY(%s) AND ST_Intersects(b.geom, e.geom)
+        WITH bounds AS (
+            SELECT ST_Union({bounds_buffer_col}) as geom
+            FROM {bounds_schema}.{bounds_table}
+            WHERE fid = ANY(%s)
+        )
+        SELECT e.fid, connectors, road_class, surface, level, e.geom
+        FROM {overture_schema}.overture_edges e, bounds b
+        WHERE ST_Intersects(b.geom, e.geom)
         """,
         engine,
         index_col="fid",
@@ -144,6 +155,7 @@ def process_network(
             bounds_fid_cluster,
             bounds_schema,
             bounds_table,
+            bounds_buffer_col,
             overture_schema,
             output_schema,
         )
@@ -154,7 +166,7 @@ if __name__ == "__main__":
     Examples are run from the project folder (the folder containing src)
     python -m src.processing.generate_networks 745 eu bounds geom_10000 overture base --overwrite=False
     """
-    if True:
+    if False:
         parser = argparse.ArgumentParser(description="Convert raw Overture nodes and edges to network.")
         parser.add_argument(
             "bounds_fid",
