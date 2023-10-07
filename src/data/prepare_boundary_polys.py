@@ -70,6 +70,19 @@ def bound_polys(schema_name: str, bounds_raster_table_name: str, bounds_table_na
             ON {schema_name}.{bounds_table_name} USING GIST (geom_10000);
                      """
     )
+    # drop remote boundaries, e.g. south west islands such as madeira
+    tools.db_execute(
+        f"""
+        WITH extent AS (
+            SELECT ST_MakeEnvelope(2576047, 1389198, 5883853, 4772012, 3035) AS geom
+        )
+        DELETE FROM {schema_name}.{bounds_table_name} b
+        WHERE NOT EXISTS (
+            SELECT 1 FROM extent e
+            WHERE ST_Intersects(e.geom, b.geom)
+        );
+        """
+    )
 
 
 if __name__ == "__main__":
