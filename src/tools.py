@@ -68,73 +68,6 @@ def db_fetch(query: str, params: tuple[Any] | None = None) -> Any:
     return rows
 
 
-async def postgis_to_nx(
-    nodes_db_schema: str,
-    nodes_db_table: str,
-    edges_db_schema: str,
-    edges_db_table: str,
-    boundary_id: str,
-):
-    """ """
-    logger = get_logger(__name__)
-    logger.info(f"Generating graph from database for city uid: {city_pop_id}")
-    multigraph = nx.MultiGraph()
-    logger.info("Loading nodes data")
-    db_con = await get_db_con()
-    node_records: Any = await db_con.fetch(
-        f"""
-        SELECT uid, within, geom
-        FROM {nodes_db_schema}.{nodes_db_table}
-        WHERE boundary_id = {boundary_id}"""
-    )
-    for node_data in tqdm(node_records):
-        geom: geometry.Point = wkb.loads(node_data["geom"], hex=True)  # type: ignore
-        multigraph.add_node(node_data["uid"], x=geom.x, y=geom.y, live=node_data["within"])  # pylint: disable=no-member
-    logger.info("Loading edges data")
-    edge_records: Any = await db_con.fetch(
-        f"""
-        SELECT uid, node_a, node_b, geom
-        FROM {edges_db_schema}.{edges_db_table}
-        WHERE boundary_id = {boundary_id}"""
-    )
-    await db_con.close()
-    # handle (literal) edge cases
-    for edge_data in tqdm(edge_records):
-        if edge_data["node_a"] in multigraph and edge_data["node_b"] in multigraph:
-            multigraph.add_edge(
-                edge_data["node_a"],
-                edge_data["node_b"],
-                geom=wkb.loads(edge_data["geom"], hex=True),
-            )
-
-    return multigraph
-
-
-async def _iter_boundaries(
-    boundaries_schema: str, boundaries_table: str, start: int, end: int, buffer: int
-) -> list[tuple[int, geometry.Polygon, geometry.Polygon]]:
-    """ """
-    db_con = await get_db_con()
-    response: list[Any] = await db_con.fetch(
-        f"""
-    SELECT pop_id, geom as bound_geom, ST_Simplify(ST_ConvexHull(ST_Buffer(geom, $1)), 20) as convex_buff_geom
-    FROM {boundaries_schema}.{boundaries_table}
-    WHERE pop_id >= {start} AND pop_id <= {end}
-    ORDER BY pop_id;
-    """,
-        buffer,
-    )
-    rows = [
-        (
-            row["pop_id"],
-            wkb.loads(row["bound_geom"], hex=True),
-            wkb.loads(row["convex_buff_geom"], hex=True),
-        )
-        for row in response
-    ]
-    return rows  # type: ignore
-
-
 def iter_boundaries(
     boundaries_schema: str,
     boundaries_table: str,
@@ -202,11 +135,13 @@ def generate_graph(
     # filter by boundary and build nx
     logger.info("Adding nodes to graph")
     for node_row in tqdm(nodes_gdf.itertuples()):
-        multigraph.add_node(
-            node_row.Index,
-            x=node_row.geom.x,
-            y=node_row.geom.y,
-        )
+        # catch duplicates in case of DB dupes
+        if not multigraph.has_node(node_row.Index):
+            multigraph.add_node(
+                node_row.Index,
+                x=node_row.geom.x,
+                y=node_row.geom.y,
+            )
     logger.info("Adding edges to graph")
     kept_road_types: set[str] = set()
     for edge_idx, edges_data in tqdm(edges_gdf.iterrows()):
@@ -236,13 +171,22 @@ def generate_graph(
                     "Edge and endpoint connector are not touching. "
                     f"See connectors: {node_info_a[0]} and {node_info_b[0]}"
                 )
-            multigraph.add_edge(
-                node_info_a[0],
-                node_info_b[0],
-                edge_idx=edge_idx,
-                level=edges_data.level,
-                geom=seg_geom,
-            )
+            # don't add duplicates
+            dupe = False
+            if multigraph.has_edge(node_info_a[0], node_info_b[0]):
+                edges = multigraph[node_info_a[0]][node_info_b[0]]
+                for edge_idx, edge_val in dict(edges).items():
+                    if edge_val["geom"].buffer(1).contains(seg_geom):
+                        dupe = True
+                        break
+            if dupe is False:
+                multigraph.add_edge(
+                    node_info_a[0],
+                    node_info_b[0],
+                    edge_idx=edge_idx,
+                    level=edges_data.level,
+                    geom=seg_geom,
+                )
     logger.info(f'Dropped road types: {", ".join(drop_road_classes)}')
     logger.info(f'Kept road types: {", ".join(kept_road_types)}')
 
