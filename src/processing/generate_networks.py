@@ -35,9 +35,9 @@ def fetch_unioned_bound_fids(
         )
         SELECT uf.fids
         FROM union_fids uf
-        WHERE uf.fids && array[%s]::bigint[]
+        WHERE uf.fids && %s::bigint[]
         """,
-        (tuple(bounds_fids),),
+        (bounds_fids,),
     )
     return [b[0] for b in bounds_fid_clusters]
 
@@ -51,6 +51,7 @@ def process_bounds(
     output_schema: str,
 ):
     """ """
+    logger.info(f"Processing FID cluster: {bounds_fids}")
     # the fids correspond to overlapping clusters per the prior step
     # this avoids duplication
     nodes_gdf = gpd.read_postgis(
@@ -60,7 +61,7 @@ def process_bounds(
             FROM {bounds_schema}.{bounds_table}
             WHERE fid = ANY(%s)
         )
-        SELECT n.fid, n.geom
+        SELECT DISTINCT n.fid, n.geom
         FROM {overture_schema}.overture_nodes n, bounds b
         WHERE ST_Intersects(b.geom, n.geom)
         """,
@@ -69,6 +70,10 @@ def process_bounds(
         geom_col="geom",
         params=(bounds_fids,),
     )
+    # skip any empty - where overture data doesn't cover extents e.g. peripheral remote towns
+    # these are mostly dealt with (e.g. madeira) when running prepare_boundary_polys
+    if len(nodes_gdf) == 0:
+        return
     edges_gdf = gpd.read_postgis(
         f"""
         WITH bounds AS (
@@ -76,7 +81,7 @@ def process_bounds(
             FROM {bounds_schema}.{bounds_table}
             WHERE fid = ANY(%s)
         )
-        SELECT e.fid, connectors, road_class, surface, level, e.geom
+        SELECT DISTINCT e.fid, connectors, road_class, surface, level, e.geom
         FROM {overture_schema}.overture_edges e, bounds b
         WHERE ST_Intersects(b.geom, e.geom)
         """,
@@ -89,23 +94,12 @@ def process_bounds(
         nodes_gdf=nodes_gdf,  # type: ignore
         edges_gdf=edges_gdf,  # type: ignore
         road_class_col="road_class",
+        drop_road_classes=["motorway", "parkingAisle", "cycleway"],
     )
     G = graphs.nx_remove_filler_nodes(multigraph)
     G = graphs.nx_remove_dangling_nodes(G, despine=10)
-    # merges major intersections
-    G1 = graphs.nx_consolidate_nodes(
-        G,
-        buffer_dist=10,
-        crawl=True,
-    )
-    G2 = graphs.nx_split_opposing_geoms(G1, buffer_dist=10)
-    G3 = graphs.nx_consolidate_nodes(
-        G2,
-        buffer_dist=10,
-        crawl=False,
-        neighbour_policy="indirect",
-    )
-    G_decomp = graphs.nx_decompose(G3, 100)
+    G = graphs.merge_parallel_edges(G, merge_edges_by_midline=True, contains_buffer_dist=1)
+    G_decomp = graphs.nx_decompose(G, 100)
     G_dual = graphs.nx_to_dual(G_decomp)
     nodes_gdf, edges_gdf, network_structure = graphs.network_structure_from_nx(G_dual, crs=3035)
 
@@ -164,9 +158,9 @@ def process_network(
 if __name__ == "__main__":
     """
     Examples are run from the project folder (the folder containing src)
-    python -m src.processing.generate_networks 745 eu bounds geom_10000 overture base --overwrite=False
+    python -m src.processing.generate_networks all eu bounds geom_10000 overture base --overwrite=True
     """
-    if False:
+    if True:
         parser = argparse.ArgumentParser(description="Convert raw Overture nodes and edges to network.")
         parser.add_argument(
             "bounds_fid",
@@ -200,7 +194,13 @@ if __name__ == "__main__":
             args.overwrite,
         )
     else:
-        bounds_fids = [745]  # 739
+        bounds_fids = [811]  # 739
+        # bounds_fids = tools.db_fetch(
+        #     f"""
+        # WITH fids AS (SELECT fid FROM eu.bounds ORDER BY fid ASC)
+        # SELECT array_agg(fid) FROM fids
+        # """
+        # )[0][0]
         process_network(
             bounds_fids,
             "eu",
