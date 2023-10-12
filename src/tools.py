@@ -134,11 +134,19 @@ def generate_graph(
     multigraph = nx.MultiGraph()
     # filter by boundary and build nx
     logger.info("Adding nodes to graph")
+    # dedupe nodes
+    node_map = {}
     for node_row in tqdm(nodes_gdf.itertuples()):
-        # catch duplicates in case of DB dupes
+        # catch duplicates in case of overture dupes by xy or database dupes
+        xy_key = f"{node_row.geom.x}-{node_row.geom.y}"
+        if xy_key not in node_map:
+            node_map[xy_key] = node_row.Index
+        # merged key
+        merged_key = node_map[xy_key]
+        # only insert if new
         if not multigraph.has_node(node_row.Index):
             multigraph.add_node(
-                node_row.Index,
+                merged_key,
                 x=node_row.geom.x,
                 y=node_row.geom.y,
             )
@@ -149,6 +157,7 @@ def generate_graph(
             if edges_data[road_class_col] in drop_road_classes:
                 continue
             kept_road_types.add(edges_data[road_class_col])
+        uniq_ids = set()
         connector_ids: list[str] = json.loads(edges_data.connectors)
         connector_infos: list[tuple[str, geometry.Point]] = []
         missing_connectors = False
@@ -157,8 +166,16 @@ def generate_graph(
             if connector_id not in multigraph:
                 missing_connectors = True
                 break
-            connector_point = geometry.Point(multigraph.nodes[connector_id]["x"], multigraph.nodes[connector_id]["y"])
-            connector_infos.append((connector_id, connector_point))
+            # deduplicate
+            x, y = multigraph.nodes[connector_id]["x"], multigraph.nodes[connector_id]["y"]
+            xy_key = f"{x}-{y}"
+            merged_key = node_map[xy_key]
+            if merged_key in uniq_ids:
+                continue
+            uniq_ids.add(merged_key)
+            # track
+            connector_point = geometry.Point(x, y)
+            connector_infos.append((merged_key, connector_point))
         if missing_connectors is True:
             continue
         if len(connector_infos) < 2:
