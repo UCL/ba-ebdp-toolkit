@@ -94,7 +94,7 @@ def process_bounds(
         nodes_gdf=nodes_gdf,  # type: ignore
         edges_gdf=edges_gdf,  # type: ignore
         road_class_col="road_class",
-        drop_road_classes=["motorway", "parkingAisle", "cycleway"],
+        drop_road_classes=["motorway", "parkingAisle"],
     )
     G = graphs.nx_remove_filler_nodes(multigraph)
     G = graphs.nx_remove_dangling_nodes(G, despine=10)
