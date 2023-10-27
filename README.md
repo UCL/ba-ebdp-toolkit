@@ -15,3 +15,7 @@ See the [data_loading_notes.md](src/data/data-loading-notes.md)
 This repo depends on copy-left open source packages licensed as AGPLv3 and therefore adopts the same license. This is also in keeping with the intention of the TWIN2EXPAND project to create openly reproducible workflows.
 
 The Overture Maps data source is licensed [Community Data License Agreement – Permissive, Version 2.0](https://cdla.dev) with some layers licensed as [Open Data Commons Open Database License](https://opendatacommons.org/licenses/odbl/).
+
+## Data sources
+
+- [Road graph of the streets in Barcelona City](https://opendata-ajuntament.barcelona.cat/data/en/dataset/mapa-graf-viari-carrers-wms)
