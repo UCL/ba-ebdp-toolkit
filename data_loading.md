@@ -12,7 +12,6 @@ It may be necessary to configure raster support, for example:
 
 ```sql
 CREATE EXTENSION postgis;
-CREATE EXTENSION postgis_topology;
 CREATE EXTENSION postgis_raster;
 SELECT postgis_gdal_version();
 -- set output rasters to true if necessary
@@ -34,8 +33,8 @@ CREATE SCHEMA IF NOT EXISTS eu;
 
 There are several potential EU boundaries datasets:
 
-- [2018 Urban Clusters](https://ec.europa.eu/eurostat/web/gisco/geodata/reference-data/population-distribution-demography/clusters) - The 2018 urban clusters dataset is 1x1km raster based and broadly reflects the 2006 UMZ vector extents. These are [described as](https://ec.europa.eu/eurostat/statistics-explained/index.php?title=Territorial_typologies#Typologies) consisting of 1km2 grid cells with at least 300 people and a contiguous population of 5,000. The high density clusters are [described as](https://ec.europa.eu/eurostat/statistics-explained/index.php?title=Territorial_typologies#Typologies) contiguous 1km2 cells with at least 1,500 residents per km2 and consisting of clusters with at least 50,000 people.
-- [2006 UMZ vector](https://www.eea.europa.eu/en/datahub/datahubitem-view/6e5d9b0d-a448-4c73-b008-bdd98a3cf214) - 2006 UMZ is vector based and broadly reflects the urban clusters dataset but with a greater resolution.
+- [2018 Urban Clusters](https://ec.europa.eu/eurostat/web/gisco/geodata/reference-data/population-distribution-demography/clusters) - The 2018 urban clusters dataset is 1x1km raster based and broadly reflects the 2006 UMZ vector extents. These are [described as](https://ec.europa.eu/eurostat/statistics-explained/index.php?title=Territorial_typologies#Typologies) consisting of 1km2 grid cells with at least 300 people and a contiguous population of 5,000. The high density clusters are [described as](https://ec.europa.eu/eurostat/statistics-explained/index.php?title=Territorial_typologies#Typologies) contiguous 1km2 cells with at least 1,500 residents per km2 and consisting of cumulative urban clusters with at least 50,000 people.
+- [2006 UMZ vector](https://www.eea.europa.eu/en/datahub/datahubitem-view/6e5d9b0d-a448-4c73-b008-bdd98a3cf214) - 2006 UMZ is vector based and broadly reflects the urban clusters dataset but with a greater resolution. It is not being used due to being ~17yrs old.
 - [2012 UMZ](https://www.eea.europa.eu/en/datahub/datahubitem-view/bf175d04-8441-4ed2-b089-9636ecf19353) - 2012 UMZ datasets are clipped to administrative regions and therefore not useful for defining urban extents.
 
 Of these, the raster 2018 high density clusters is used

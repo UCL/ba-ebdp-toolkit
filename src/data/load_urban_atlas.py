@@ -40,20 +40,7 @@ def load_urban_blocks(dir_path_str: str, schema_name: str, bounds_table_name: st
             f"Encountered {bounds_geom.type} instead of Polygon or MultiPolygon type for bounds."  # type: ignore
         )
 
-    filter_classes = [
-        "Airports",
-        "Continuous urban fabric (S.L. : > 80%)",
-        "Discontinuous dense urban fabric (S.L. : 50% -  80%)",
-        "Discontinuous low density urban fabric (S.L. : 10% - 30%)",
-        "Discontinuous medium density urban fabric (S.L. : 30% - 50%)",
-        "Discontinuous very low density urban fabric (S.L. : < 10%)",
-        "Green urban areas",
-        "Industrial, commercial, public, military and private units",
-        "Isolated structures",
-        "Land without current use",
-        "Port areas",
-        "Sports and leisure facilities",
-    ]
+    filter_classes = ["Fast transit roads and associated land", "Other roads and associated land"]
     # prepare engine for GPD
     engine = tools.get_sqlalchemy_engine()
     # iter zip files and load if intersecting bounds
@@ -80,7 +67,7 @@ def load_urban_blocks(dir_path_str: str, schema_name: str, bounds_table_name: st
                                 continue
                         gdf = gpd.read_file(full_gpkg_path)
                         # discard rows if in filtered classes
-                        gdf = gdf[gdf.class_2018.isin(filter_classes)]
+                        gdf = gdf[~gdf.class_2018.isin(filter_classes)]
                         # filter spatially
                         gdf["bbox"] = gdf["geometry"].envelope
                         gdf.set_geometry("bbox", inplace=True)

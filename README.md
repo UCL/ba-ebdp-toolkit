@@ -8,7 +8,7 @@ Project configuration is managed using a `pyproject.toml` file. [`pdm`](https://
 
 ## Data Loading
 
-See the [data_loading_notes.md](src/data/data-loading-notes.md)
+See the [data_loading.md](data_loading.md) markdown file for data loading guidelines.
 
 ## Licenses
 

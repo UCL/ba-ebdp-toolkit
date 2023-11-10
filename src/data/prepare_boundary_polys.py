@@ -36,6 +36,8 @@ def bound_polys(schema_name: str, bounds_raster_table_name: str, bounds_table_na
                 if not isinstance(poly, geometry.Polygon):
                     logger.warning(f"Discarding extracted geom of type {poly.type}")
                     continue
+                # buffer and reverse buffer to smooth edges
+                poly = poly.buffer(2000).buffer(-1000)
                 # agg
                 polys.append(poly)
 
