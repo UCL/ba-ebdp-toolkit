@@ -128,9 +128,11 @@ The download sizes for the EU are:
 
 Upload overture datasets using the `load_overture_data.py` script. Provide either a target boundary table FID value or else use 'all' to load all FIDs.
 
+> The overture places data is not used in favour of OSM for the time being. Re-evaluate OSM if a more cohesive landuse schema can be extracted at some point in future and if they start including more locations.
+
 ```bash
 python -m src.data.load_overture_data 783 load_overture_networks eu bounds overture geom_10000 --overture_nodes_path='temp/eu_nodes.gpkg' --overture_edges_path='temp/eu_edges.gpkg' --overwrite=True
-python -m src.data.load_overture_data 783 load_overture_places eu bounds overture geom_2000 --overture_places_path='temp/eu_places.gpkg' --overwrite=True
+# not used: python -m src.data.load_overture_data 783 load_overture_places eu bounds overture geom_2000 --overture_places_path='temp/eu_places.gpkg' --overwrite=True
 python -m src.data.load_overture_data 783 load_overture_buildings eu bounds overture geom_2000  --overture_buildings_path='temp/eu_buildings.gpkg' --overwrite=True
 ```
 

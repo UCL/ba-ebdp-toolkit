@@ -13,6 +13,8 @@ ogr2ogr -progress -spat -12.421470912798974 33.226730183416954 45.53515835575943
 ```
 
 """
+from __future__ import annotations
+
 import argparse
 import json
 import os
