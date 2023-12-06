@@ -53,6 +53,7 @@ def nx_from_barcelona_gpkg(
 
 
 # %%
+repo_path = Path("../..")
 barc_netw_path = Path(repo_path / "case_data/barcelona_road_network.gpkg")
 print("data path:", barc_netw_path)
 print("path exists:", barc_netw_path.exists())
@@ -119,7 +120,7 @@ barc_netw_osm_cleaned = io.osm_graph_from_poly(
     poly_epsg_code=3035,
     to_epsg_code=3035,
     crawl_consolidate_dist=15,
-    parallel_consolidate_dist=20,
+    parallel_consolidate_dist=25,
     contains_buffer_dist=100,
     simplify=True,
     iron_edges=True,
@@ -141,8 +142,12 @@ nodes_gdf_osm_cleaned = networks.node_centrality_simplest(
     nodes_gdf=nodes_gdf_osm_cleaned,
     distances=distances,
 )
-nodes_gdf_osm_cleaned.to_file("temp/barcelona_cleaned_nodes.gpkg")
-edges_gdf_osm_cleaned.to_file("temp/barcelona_cleaned_edges.gpkg")
+# %%
+# create temp directory if necessary
+(repo_path / Path("temp")).mkdir(parents=False, exist_ok=True)
+# write outputs
+nodes_gdf_osm_cleaned.to_file(repo_path / Path("temp/barcelona_cleaned_nodes.gpkg"))
+edges_gdf_osm_cleaned.to_file(repo_path / Path("temp/barcelona_cleaned_edges.gpkg"))
 
 # %%
 easting, northing = 3664195.3, 2066277.3
