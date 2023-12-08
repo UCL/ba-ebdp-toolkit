@@ -26,12 +26,58 @@ from pathlib import Path
 import geopandas as gpd
 from shapely import geometry, wkb
 from tqdm import tqdm
-from workflows import landuse_schema_overture
 
 from src import tools
 
 logger = tools.get_logger(__name__)
 engine = tools.get_sqlalchemy_engine()
+
+OVERTURE_SCHEMA = tools.generate_overture_schema()
+
+
+def create_tracking_table(table_key: str):
+    """ """
+    tools.db_execute(
+        f"""
+        CREATE SCHEMA IF NOT EXISTS loads;
+        CREATE TABLE IF NOT EXISTS loads.{table_key} (
+            unioned_bounds_id text,
+            theme TEXT
+        );
+        """
+    )
+
+
+def init_tracking_state(table_key: str, unioned_bounds_id: str, theme_key: str, overwrite: bool = False) -> bool:
+    """ """
+    if overwrite is True:
+        tools.db_execute(
+            f"""
+            DELETE FROM loads.{table_key}
+            WHERE unioned_bounds_id = {unioned_bounds_id} 
+            """
+        )
+        return False
+    result = tools.db_fetch(
+        f"""
+        SELECT EXISTS(
+            SELECT 1
+            FROM loads.{table_key}
+            WHERE unioned_bounds_id = {unioned_bounds_id}
+                AND theme = {theme_key}
+        );
+    """
+    )[0][0]
+    return bool(result)
+
+
+def update_tracking_state(table_key: str, unioned_bounds_id: str, theme_key: str):
+    """ """
+    tools.db_execute(
+        f"""
+        INSERT INTO loads.{table_key} VALUES ({unioned_bounds_id}, {theme_key});
+        """
+    )
 
 
 def fetch_unioned_extents_4326(
@@ -241,43 +287,22 @@ def process_extent_places(
         name_info = json.loads(json_string)
         return name_info["common"][0]["value"]
 
-    sift = set()
-
     def assign_major_cat(desc: str):
-        for major_cat, major_cat_vals in landuse_schema_overture.LANDUSE_CATS.items():
+        for major_cat, major_cat_vals in OVERTURE_SCHEMA.items():
             # same parent categories have further sub categories, others not
             if isinstance(major_cat_vals, list):
                 if desc in major_cat_vals:
                     return major_cat
-            else:
-                for minor_cat_vals in major_cat_vals.values():
-                    if desc in minor_cat_vals:
-                        return major_cat
-        if desc is not None:
-            sift.add(desc)
-        return None
-
-    def assign_sub_cat(desc: str):
-        for major_cat, major_cat_vals in landuse_schema_overture.LANDUSE_CATS.items():
-            # same parent categories have further sub categories, others not
-            if isinstance(major_cat_vals, list):
-                if desc in major_cat_vals:
-                    return major_cat
-            else:
-                for minor_cat, minor_cat_vals in major_cat_vals.items():
-                    if desc in minor_cat_vals:
-                        return minor_cat
         return None
 
     places_gdf["main_cat"] = places_gdf["categories"].apply(extract_main_cat)
     places_gdf["alt_cat"] = places_gdf["categories"].apply(extract_alt_cat)
     places_gdf["common_name"] = places_gdf["names"].apply(extract_name)
     places_gdf["major_cat"] = places_gdf["main_cat"].apply(assign_major_cat)
-    places_gdf["minor_cat"] = places_gdf["main_cat"].apply(assign_sub_cat)
+
     places_gdf.to_crs(3035).to_postgis(
         "overture_places", engine, if_exists="append", schema=overture_schema_name, index=True, index_label="fid"
     )
-    print(f"Items not found: {sift}")
     tools.db_execute(
         f"""
         DELETE FROM {overture_schema_name}.overture_places nd
@@ -486,13 +511,14 @@ if __name__ == "__main__":
                 args.overwrite,
             )
     else:
+        bounds_fids = [624]
         # bounds_fids = [783, 743, 751, 758, 761, 763, 764, 766, 767, 768, 769, 771]
-        bounds_fids = tools.db_fetch(
-            f"""
-                WITH fids AS (SELECT fid FROM eu.bounds ORDER BY fid ASC)
-                SELECT array_agg(fid) FROM fids
-                """
-        )[0][0]
+        # bounds_fids = tools.db_fetch(
+        #     f"""
+        #         WITH fids AS (SELECT fid FROM eu.bounds ORDER BY fid ASC)
+        #         SELECT array_agg(fid) FROM fids
+        #         """
+        # )[0][0]
         # load_overture_networks(
         #     bounds_fids,
         #     "temp/eu_nodes.gpkg",
@@ -504,7 +530,7 @@ if __name__ == "__main__":
         #     overwrite=False,
         # )
         load_overture_places(
-            bounds_fids, "temp/eu_places.gpkg", "eu", "bounds", "overture", "geom_2000", overwrite=False
+            bounds_fids, "temp/eu_places.gpkg", "eu", "bounds", "overture", "geom_2000", overwrite=True
         )
         # load_overture_buildings(
         #     bounds_fids, "temp/eu_buildings.gpkg", "eu", "bounds", "overture", "geom_2000", overwrite=False

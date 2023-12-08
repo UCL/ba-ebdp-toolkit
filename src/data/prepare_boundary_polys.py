@@ -1,6 +1,7 @@
 import argparse
 
 import geopandas as gpd
+import osmnx as ox
 from geoalchemy2 import Geometry
 from rasterio.features import shapes
 from rasterio.io import MemoryFile
@@ -21,6 +22,10 @@ def bound_polys(schema_name: str, bounds_raster_table_name: str, bounds_table_na
             FROM {schema_name}.{bounds_raster_table_name} r;
         """
     )[0][0]
+    # fetch UK boundary to filter out
+    uk_boundary = ox.geocode_to_gdf("United Kingdom").to_crs("3035").iloc[0].geometry
+    # and EU boundary to filter out remote islands
+    eu_boundary = geometry.box(2576047, 1389198, 5883853, 4772012)
     # extract polygons from raster
     polys: list[geometry.Polygon] = []
     with MemoryFile(raster_result) as memfile:
@@ -35,6 +40,12 @@ def bound_polys(schema_name: str, bounds_raster_table_name: str, bounds_table_na
                 # log if anything problematic found
                 if not isinstance(poly, geometry.Polygon):
                     logger.warning(f"Discarding extracted geom of type {poly.type}")
+                    continue
+                # don't load if intersecting UK
+                if uk_boundary.contains(poly):
+                    continue
+                # don't load if outside EU
+                if not eu_boundary.contains(poly):
                     continue
                 # buffer and reverse buffer to smooth edges
                 poly = poly.buffer(2000).buffer(-1000)
@@ -72,17 +83,39 @@ def bound_polys(schema_name: str, bounds_raster_table_name: str, bounds_table_na
             ON {schema_name}.{bounds_table_name} USING GIST (geom_10000);
                      """
     )
-    # drop remote boundaries, e.g. south west islands such as madeira
+    # create unioned boundaries
     tools.db_execute(
         f"""
-        WITH extent AS (
-            SELECT ST_MakeEnvelope(2576047, 1389198, 5883853, 4772012, 3035) AS geom
-        )
-        DELETE FROM {schema_name}.{bounds_table_name} b
-        WHERE NOT EXISTS (
-            SELECT 1 FROM extent e
-            WHERE ST_Intersects(e.geom, b.geom)
-        );
+        DROP TABLE IF EXISTS {schema_name}.unioned_{bounds_table_name}_2000;
+        CREATE TABLE {schema_name}.unioned_{bounds_table_name}_2000 AS
+        SELECT 
+            ROW_NUMBER() OVER (ORDER BY (SELECT NULL)) AS id, 
+            (ST_Dump(ST_Union(geom_2000))).geom AS geom
+        FROM 
+            {schema_name}.{bounds_table_name};
+            """
+    )
+    tools.db_execute(
+        f"""
+        CREATE INDEX unioned_{bounds_table_name}_geom_2000_idx
+            ON {schema_name}.unioned_{bounds_table_name}_2000 USING GIST (geom);
+        """
+    )
+    tools.db_execute(
+        f"""
+        DROP TABLE IF EXISTS {schema_name}.unioned_{bounds_table_name}_10000;
+        CREATE TABLE {schema_name}.unioned_{bounds_table_name}_10000 AS
+        SELECT 
+            ROW_NUMBER() OVER (ORDER BY (SELECT NULL)) AS id, 
+            (ST_Dump(ST_Union(geom_10000))).geom AS geom
+        FROM 
+            {schema_name}.{bounds_table_name};
+        """
+    )
+    tools.db_execute(
+        f"""
+        CREATE INDEX unioned_{bounds_table_name}_geom_10000_idx
+            ON {schema_name}.unioned_{bounds_table_name}_10000 USING GIST (geom);
         """
     )
 

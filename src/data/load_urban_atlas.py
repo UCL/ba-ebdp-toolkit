@@ -40,7 +40,11 @@ def load_urban_blocks(dir_path_str: str, schema_name: str, bounds_table_name: st
             f"Encountered {bounds_geom.type} instead of Polygon or MultiPolygon type for bounds."  # type: ignore
         )
 
-    filter_classes = ["Fast transit roads and associated land", "Other roads and associated land"]
+    filter_classes = [
+        "Fast transit roads and associated land",
+        "Other roads and associated land",
+        "Railways and associated land",
+    ]
     # prepare engine for GPD
     engine = tools.get_sqlalchemy_engine()
     # iter zip files and load if intersecting bounds

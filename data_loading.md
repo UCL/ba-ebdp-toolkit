@@ -1,14 +1,12 @@
 # Loading Notes
 
-The data source is a combination of [Copernicus](), [OpenStreetMap](https://www.openstreetmap.org), and [Overture Maps](https://overturemaps.org). Overture is a relatively new dataset which intends to provide a higher degree of data verification. However, OpenStreetMap currently remains preferable for land-use information.
+The data source is a combination of EU Copernicus data, [OpenStreetMap](https://www.openstreetmap.org), and [Overture Maps](https://overturemaps.org). Overture is a relatively new dataset which intends to provide a higher degree of data verification. However, OpenStreetMap currently remains preferable for land-use information.
 
 ## PostGIS
 
 Data storage and sharing is done with `postgres` and `postGIS`.
 
-Ensure that the `postGIS` and other basic extensions are enabled.
-
-It may be necessary to configure raster support, for example:
+The database adminstrators will ensure that the `postGIS` and other basic extensions are enabled per below.
 
 ```sql
 CREATE EXTENSION postgis;
@@ -19,7 +17,7 @@ SHOW postgis.enable_outdb_rasters;
 SET postgis.enable_outdb_rasters TO True;
 -- enable GDAL drivers if necessary
 ALTER DATABASE t2e SET postgis.gdal_enabled_drivers TO 'GTiff';
-SELECT pg_reload_conf();
+-- reconnect to refresh
 SELECT short_name FROM ST_GDALDrivers();
 ```
 
@@ -43,11 +41,13 @@ Of these, the raster 2018 high density clusters is used
 - From the terminal, prepare and upload to PostGIS, substituting the host, user, and database parameters as required:
 
 ```bash
-raster2pgsql -d -s 3035 -I -C -M -F -t auto HDENS_CLST_2018.tif eu.hdens_clusters > output.sql
-psql -h <host> -U <user> -d <db> -W -f output.sql
+# update the path to your postgres bin directory
+/Applications/Postgres.app/Contents/Versions/15/bin/raster2pgsql -d -s 3035 -I -C -M -F -t auto HDENS_CLST_2018.tif eu.hdens_clusters > output.sql
+# update the port if necessary
+/Applications/Postgres.app/Contents/Versions/15/bin/psql -h localhost -U editor -d t2e -W -p 5435 -f output.sql
 ```
 
-- Run the `prepare_boundary_polys.py` script to generate the vector boundaries from the raster source. Provide the schema name, the table name of the high density clusters per above upload, and the output table name for the polygon boundaries. For example:
+- Run the `prepare_boundary_polys.py` script to generate the vector boundaries from the raster source. Provide the schema name, the table name of the high density clusters per above upload, and the output table name for the polygon boundaries. This script will automatically remove boundaries intersecting the UK.
 
 ```bash
 python -m src.data.prepare_boundary_polys eu hdens_clusters bounds
@@ -61,8 +61,10 @@ python -m src.data.prepare_boundary_polys eu hdens_clusters bounds
 - From the terminal, prepare and upload to PostGIS, substituting the host, user, and database parameters as required:
 
 ```bash
-raster2pgsql -d -s 3035 -I -C -M -F -t auto ESTAT_OBS-VALUE-T_2021_V1-0.tiff eu.pop_dens > output.sql
-psql -h <host> -U <user> -d <db> -W -f output.sql
+# update the path to your postgres bin directory
+/Applications/Postgres.app/Contents/Versions/15/bin/raster2pgsql -d -s 3035 -I -C -M -F -t auto ESTAT_OBS-VALUE-T_2021_V1-0.tiff eu.pop_dens > output.sql
+# update the port if necessary
+/Applications/Postgres.app/Contents/Versions/15/bin/psql -h localhost -U editor -d t2e -W -p 5435 -f output.sql
 ```
 
 ## Census
@@ -102,7 +104,7 @@ python -m src.data.load_urban_atlas_trees "./temp/urban atlas trees" eu bounds t
 - Run the `load_bldg_hts_raster.py` script to upload the data. Provide the path to the input directory with the zipped data files. Also specify the schema, table name, and the optional argument `--bin_path` to provide a path to the `bin` directory for your `postgres` installation. For example:
 
 ```bash
-python -m src.data.load_bldg_hts_raster "./temp/Digital height Model EU" eu bldg_hts --bin_path /Applications/Postgres.app/Contents/Versions/16/bin/
+python -m src.data.load_bldg_hts_raster "./temp/Digital height Model EU" eu bldg_hts --bin_path /Applications/Postgres.app/Contents/Versions/15/bin/
 ```
 
 ## Downloading Overture data
@@ -131,9 +133,9 @@ Upload overture datasets using the `load_overture_data.py` script. Provide eithe
 > The overture places data is not used in favour of OSM for the time being. Re-evaluate OSM if a more cohesive landuse schema can be extracted at some point in future and if they start including more locations.
 
 ```bash
-python -m src.data.load_overture_data 783 load_overture_networks eu bounds overture geom_10000 --overture_nodes_path='temp/eu_nodes.gpkg' --overture_edges_path='temp/eu_edges.gpkg' --overwrite=True
-# not used: python -m src.data.load_overture_data 783 load_overture_places eu bounds overture geom_2000 --overture_places_path='temp/eu_places.gpkg' --overwrite=True
-python -m src.data.load_overture_data 783 load_overture_buildings eu bounds overture geom_2000  --overture_buildings_path='temp/eu_buildings.gpkg' --overwrite=True
+python -m src.data.load_overture_data all load_overture_networks eu bounds overture geom_10000 --overture_nodes_path='temp/eu_nodes.gpkg' --overture_edges_path='temp/eu_edges.gpkg' --overwrite=False
+python -m src.data.load_overture_data all load_overture_places eu bounds overture geom_2000 --overture_places_path='temp/eu_places.gpkg' --overwrite=False
+python -m src.data.load_overture_data all load_overture_buildings eu bounds overture geom_2000  --overture_buildings_path='temp/eu_buildings.gpkg' --overwrite=False
 ```
 
 - Automate building heights from raster

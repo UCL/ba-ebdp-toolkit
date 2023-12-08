@@ -3,7 +3,7 @@
 import argparse
 
 import geopandas as gpd
-from cityseer.tools import graphs
+from cityseer.tools import graphs, io
 from geoalchemy2 import Geometry
 from shapely import geometry
 from tqdm import tqdm
@@ -97,18 +97,15 @@ def process_bounds(
         drop_road_classes=["motorway", "parkingAisle"],
     )
     G = graphs.nx_remove_filler_nodes(multigraph)
-    G = graphs.nx_remove_dangling_nodes(G, despine=10)
-    G = graphs.merge_parallel_edges(G, merge_edges_by_midline=True, contains_buffer_dist=1)
+    G = graphs.nx_remove_dangling_nodes(G)
+    G = graphs.nx_merge_parallel_edges(G, merge_edges_by_midline=True, contains_buffer_dist=5)
     G_decomp = graphs.nx_decompose(G, 100)
-    G_dual = graphs.nx_to_dual(G_decomp)
-    nodes_gdf, edges_gdf, network_structure = graphs.network_structure_from_nx(G_dual, crs=3035)
+    nodes_gdf, edges_gdf, network_structure = io.network_structure_from_nx(G_decomp, crs=3035)
 
-    # extract linestring from primal for visualisation purposes
-    def merge_primal_edges(node_row):
-        edge = G_decomp[node_row["primal_edge_node_a"]][node_row["primal_edge_node_b"]][node_row["primal_edge_idx"]]
-        return edge["geom"]
+    def generate_vis_lines(node_row):
+        return G_decomp.nodes[node_row.name]["line_geom"]
 
-    nodes_gdf["line_geom"] = nodes_gdf.apply(merge_primal_edges, axis=1)
+    nodes_gdf["line_geom"] = nodes_gdf.apply(generate_vis_lines, axis=1)
     nodes_gdf.rename(columns={"geom": "point_geom"}, inplace=True)
     nodes_gdf.set_geometry("point_geom", inplace=True)
     nodes_gdf.to_postgis(

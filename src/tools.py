@@ -210,6 +210,50 @@ def generate_graph(
     return multigraph
 
 
+def generate_overture_schema() -> dict[str, list[str]]:
+    """ """
+    logger.info("Preparing Overture schema")
+    overture_csv_file_path = "./src/raw_landuse_schema.csv"
+    schema = {
+        "restaurant": [],
+        "bar": [],
+        "cafe": [],
+        "accommodation": [],
+        "automotive": [],
+        "arts_and_entertainment": [],
+        "attractions_and_activities": [],
+        "active_life": [],
+        "beauty_and_spa": [],
+        "education": [],
+        "financial_service": [],
+        "private_establishments_and_corporates": [],
+        "retail": [],
+        "health_and_medical": [],
+        "pets": [],
+        "business_to_business": [],
+        "public_service_and_government": [],
+        "religious_organization": [],
+        "real_estate": [],
+        "travel": [],
+        "mass_media": [],
+        "professional_services": [],
+        "structure_and_geography": [],
+    }
+    for category in schema.keys():
+        with open(overture_csv_file_path) as schema_csv:
+            logger.info(f"Gathering category: {category}")
+            for line in schema_csv:
+                splits = line.split(";")
+                if not "[" in splits[1]:
+                    logger.info(f"Skipping line {line}")
+                    continue
+                cats = splits[1].strip("\n[]")
+                cats = cats.split(",")
+                if category in cats:
+                    schema[category].append(splits[0])
+    return schema
+
+
 def check_exists(overwrite: bool, overture_schema_name: str, overture_table_name: str):
     """ """
     if overwrite is False:

@@ -61,3 +61,7 @@ def test_split_street_segments():
     assert seg_lines[0] not in [seg_lines[1], seg_lines[1].reverse(), seg_lines[2], seg_lines[2].reverse()]
     assert seg_lines[1] not in [seg_lines[0], seg_lines[0].reverse(), seg_lines[2], seg_lines[2].reverse()]
     assert seg_lines[2] not in [seg_lines[1], seg_lines[1].reverse(), seg_lines[0], seg_lines[0].reverse()]
+
+
+def test_prepare_schema():
+    schema = tools.generate_overture_schema()
