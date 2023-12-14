@@ -13,7 +13,7 @@ logger = tools.get_logger(__name__)
 engine = tools.get_sqlalchemy_engine()
 
 
-def bound_polys(schema_name: str, bounds_raster_table_name: str, bounds_table_name: str) -> None:
+def extract_boundary_polys(schema_name: str, bounds_raster_table_name: str, bounds_table_name: str) -> None:
     # may need raster support to be enabled on DB
     # fetch eu high density clusters
     raster_result = tools.db_fetch(
@@ -88,12 +88,22 @@ def bound_polys(schema_name: str, bounds_raster_table_name: str, bounds_table_na
         f"""
         DROP TABLE IF EXISTS {schema_name}.unioned_{bounds_table_name}_2000;
         CREATE TABLE {schema_name}.unioned_{bounds_table_name}_2000 AS
+        WITH unioned_geoms AS (
+            SELECT 
+                ST_MakePolygon(
+                    ST_ExteriorRing(
+                        (ST_Dump(ST_Union(geom_2000))).geom
+                    )
+                )::geometry(POLYGON, 3035) AS geom
+            FROM 
+                {schema_name}.{bounds_table_name}
+        )
         SELECT 
-            ROW_NUMBER() OVER (ORDER BY (SELECT NULL)) AS id, 
-            (ST_Dump(ST_Union(geom_2000))).geom AS geom
+            ROW_NUMBER() OVER (ORDER BY ST_Area(geom) DESC) AS id, 
+            geom
         FROM 
-            {schema_name}.{bounds_table_name};
-            """
+            unioned_geoms;
+        """
     )
     tools.db_execute(
         f"""
@@ -105,11 +115,21 @@ def bound_polys(schema_name: str, bounds_raster_table_name: str, bounds_table_na
         f"""
         DROP TABLE IF EXISTS {schema_name}.unioned_{bounds_table_name}_10000;
         CREATE TABLE {schema_name}.unioned_{bounds_table_name}_10000 AS
+        WITH unioned_geoms AS (
+            SELECT 
+                ST_MakePolygon(
+                    ST_ExteriorRing(
+                        (ST_Dump(ST_Union(geom_10000))).geom
+                    )
+                )::geometry(POLYGON, 3035) AS geom
+            FROM 
+                {schema_name}.{bounds_table_name}
+        )
         SELECT 
-            ROW_NUMBER() OVER (ORDER BY (SELECT NULL)) AS id, 
-            (ST_Dump(ST_Union(geom_10000))).geom AS geom
+            ROW_NUMBER() OVER (ORDER BY ST_Area(geom) DESC) AS id, 
+            geom
         FROM 
-            {schema_name}.{bounds_table_name};
+            unioned_geoms;
         """
     )
     tools.db_execute(
@@ -123,7 +143,7 @@ def bound_polys(schema_name: str, bounds_raster_table_name: str, bounds_table_na
 if __name__ == "__main__":
     """
     Examples are run from the project folder (the folder containing src)
-    python -m src.data.prepare_boundary_polys eu hdens_clusters bounds
+    python -m src.data.generate_boundary_polys eu hdens_clusters bounds
     """
     logger.info(f"Converting raster boundaries to polygons.")
     if True:
@@ -132,6 +152,6 @@ if __name__ == "__main__":
         parser.add_argument("bounds_raster_table_name", type=str, help="Table name for boundaries raster.")
         parser.add_argument("bounds_table_name", type=str, help="Table name for output boundary polygons.")
         args = parser.parse_args()
-        bound_polys(args.schema_name, args.bounds_raster_table_name, args.bounds_table_name)
+        extract_boundary_polys(args.schema_name, args.bounds_raster_table_name, args.bounds_table_name)
     else:
-        bound_polys("eu", "hdens_clusters", "bounds")
+        extract_boundary_polys("eu", "hdens_clusters", "bounds")

@@ -55,6 +55,7 @@ dependencies = [
     "fiona>=1.9.5",
     "scipy>=1.11.3",
     "utm>=0.7.0",
+    "gdal>=3.8.1",
 ]
 [build-system]
 requires = ["pdm-backend"]

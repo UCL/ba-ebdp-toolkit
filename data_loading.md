@@ -47,10 +47,10 @@ Of these, the raster 2018 high density clusters is used
 /Applications/Postgres.app/Contents/Versions/15/bin/psql -h localhost -U editor -d t2e -W -p 5435 -f output.sql
 ```
 
-- Run the `prepare_boundary_polys.py` script to generate the vector boundaries from the raster source. Provide the schema name, the table name of the high density clusters per above upload, and the output table name for the polygon boundaries. This script will automatically remove boundaries intersecting the UK.
+- Run the `generate_boundary_polys.py` script to generate the vector boundaries from the raster source. Provide the schema name, the table name of the high density clusters per above upload, and the output table name for the polygon boundaries. This script will automatically remove boundaries intersecting the UK.
 
 ```bash
-python -m src.data.prepare_boundary_polys eu hdens_clusters bounds
+python -m src.data.generate_boundary_polys eu hdens_clusters bounds
 ```
 
 ## Population Density
@@ -128,15 +128,25 @@ The download sizes for the EU are:
 
 ## Ingesting Overture data
 
-Upload overture datasets using the `load_overture_data.py` script. Provide either a target boundary table FID value or else use 'all' to load all FIDs.
-
-> The overture places data is not used in favour of OSM for the time being. Re-evaluate OSM if a more cohesive landuse schema can be extracted at some point in future and if they start including more locations.
+Upload overture network data (nodes and edges) using the `ingest_networks.py` script. Pass the `--drop` flag if you want to drop and therefore replace existing tables.
 
 ```bash
-python -m src.data.load_overture_data all load_overture_networks eu bounds overture geom_10000 --overture_nodes_path='temp/eu_nodes.gpkg' --overture_edges_path='temp/eu_edges.gpkg' --overwrite=False
-python -m src.data.load_overture_data all load_overture_places eu bounds overture geom_2000 --overture_places_path='temp/eu_places.gpkg' --overwrite=False
-python -m src.data.load_overture_data all load_overture_buildings eu bounds overture geom_2000  --overture_buildings_path='temp/eu_buildings.gpkg' --overwrite=False
+python -m src.data.ingest_overture_networks 'temp/eu_nodes.gpkg' 'temp/eu_edges.gpkg' eu unioned_bounds_10000 id geom overture
 ```
+
+Places is similar but use a smaller bounds since smaller distance thresholds are used:
+
+```bash
+python -m src.data.ingest_overture_places 'temp/eu_places.gpkg' eu unioned_bounds_2000 id geom overture
+```
+
+Buildings:
+
+```bash
+python -m src.data.ingest_overture_buildings 'temp/eu_buildings.gpkg' eu unioned_bounds_2000 id geom overture
+```
+
+## Pending
 
 - Automate building heights from raster
 

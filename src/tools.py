@@ -1,10 +1,15 @@
 # pyright: basic
 """ """
-import asyncio
+from __future__ import annotations
+
 import json
 import logging
 import os
+import shutil
+import subprocess
+import time
 import warnings
+from pathlib import Path
 from typing import Any
 
 import geopandas as gpd
@@ -13,6 +18,7 @@ import pandas as pd
 import psycopg2
 import sqlalchemy
 from dotenv import load_dotenv
+from osgeo import ogr
 from shapely import geometry, ops, wkb
 from tqdm import tqdm
 
@@ -66,20 +72,6 @@ def db_fetch(query: str, params: tuple[Any] | None = None) -> Any:
             cursor.execute(query, params)
             rows = cursor.fetchall()
     return rows
-
-
-def iter_boundaries(
-    boundaries_schema: str,
-    boundaries_table: str,
-    start: int = 1,
-    end: int = 2,
-    buffer: int = 2000,
-) -> list[tuple[int, geometry.Polygon, geometry.Polygon]]:
-    """ """
-    rows: list[tuple[int, geometry.Polygon]] = asyncio.run(
-        _iter_boundaries(boundaries_schema, boundaries_table, start, end, buffer)  # type: ignore
-    )
-    return rows  # type: ignore
 
 
 Connector = tuple[str, geometry.Point]
@@ -239,7 +231,7 @@ def generate_overture_schema() -> dict[str, list[str]]:
         "professional_services": [],
         "structure_and_geography": [],
     }
-    for category in schema.keys():
+    for category, _vals in schema.items():
         with open(overture_csv_file_path) as schema_csv:
             logger.info(f"Gathering category: {category}")
             for line in schema_csv:
@@ -254,33 +246,214 @@ def generate_overture_schema() -> dict[str, list[str]]:
     return schema
 
 
-def check_exists(overwrite: bool, overture_schema_name: str, overture_table_name: str):
+def snip_overture_by_extents(
+    path: str | Path,
+    bounds_buff: geometry.Polygon,
+    path_key: str,
+    bin_path: str | None = None,
+) -> gpd.GeoDataFrame:
     """ """
-    if overwrite is False:
-        table_exists: bool = db_fetch(
-            f"""
-            SELECT EXISTS (
-                SELECT 1 FROM information_schema.tables
-                    WHERE table_schema = '{overture_schema_name}' 
-                        AND table_name = '{overture_table_name}');
-            """
-        )[0][0]
-        if table_exists:
-            raise IOError(
-                f"Destination schema and table {overture_schema_name}.{overture_table_name} already exists; aborting."
+    # prepare paths
+    input_path = Path(path)
+    if not str(input_path).endswith(".gpkg"):
+        raise ValueError(f'Expected file with extension of ".gpkg": {input_path}')
+    if not input_path.exists():
+        raise ValueError(f"Input path does not exist: {input_path}")
+    staging_dir = input_path.parent / f"temp_snip_{path_key}"
+    if staging_dir.exists():
+        shutil.rmtree(staging_dir)
+    os.makedirs(staging_dir)
+    snip_path = staging_dir / f"snip_{input_path.name}"
+    # snip
+    attempts = 3
+    while attempts > 0:
+        attempts -= 1
+        try:
+            subprocess.run(
+                [  # type: ignore
+                    "ogr2ogr" if bin_path is None else str(Path(bin_path) / "ogr2ogr"),
+                    "-f",
+                    "GPKG",
+                    "-spat",
+                    str(bounds_buff.bounds[0]),
+                    str(bounds_buff.bounds[1]),
+                    str(bounds_buff.bounds[2]),
+                    str(bounds_buff.bounds[3]),
+                    str(snip_path),
+                    str(input_path),
+                ],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                check=True,
             )
-    else:
-        db_execute(
+            break
+        except Exception as err:
+            if attempts > 0:
+                logger.error(f"Encountered error with ogr2ogr, reattempting after 1s; {attempts} attempts remaining.")
+                time.sleep(1)  # try sleeping to give time for database locks to release
+            else:
+                logger.error(err.stdout)
+                logger.error(err.stderr)
+                raise err
+    gdf = gpd.read_file(snip_path)
+    # cleanup temp directory
+    shutil.rmtree(staging_dir)
+
+    return gdf
+
+
+def iter_boundaries(db_schema: str, db_table: str, id_col: str, geom_col: str, wgs84: bool) -> list[geometry.Polygon]:
+    """ """
+    if wgs84:
+        bound_records = db_fetch(
             f"""
-            DROP TABLE IF EXISTS {overture_schema_name}.{overture_table_name};
+            SELECT {id_col} as id, ST_Transform({geom_col}, 4326) as geom
+            FROM {db_schema}.{db_table}
+            ORDER BY id DESC
             """
         )
+    else:
+        bound_records = db_fetch(
+            f"""
+            SELECT {id_col} as id, {geom_col} as geom
+            FROM {db_schema}.{db_table}
+            ORDER BY id
+            """
+        )
+    boundaries = []
+    for bound_record in bound_records:
+        boundaries.append((bound_record[0], wkb.loads(bound_record[1], hex=True)))
+    return boundaries
 
 
 def prepare_schema(overture_schema_name: str):
     """ """
+    logger.info(f"Checking schema {overture_schema_name} if necessary.")
     db_execute(
         f"""
         CREATE SCHEMA IF NOT EXISTS {overture_schema_name};
         """
     )
+
+
+def check_table_exists(db_schema: str, db_table: str) -> bool:
+    """ """
+    exists = db_fetch(
+        f"""
+        SELECT EXISTS (
+            SELECT 1
+            FROM information_schema.tables
+            WHERE table_schema = '{db_schema}' AND table_name = '{db_table}'
+        );
+        """
+    )[0][0]
+    logger.info(f"Checking if table {db_schema}.{db_table} exists: {exists}.")
+    return bool(exists)
+
+
+def init_tracking_table(
+    load_key: str, template_db_schema: str, template_db_table: str, id_col: str, geom_col: str
+) -> None:
+    """ """
+    logger.info(f"Creating loading extents tracking table if not found: loads.{load_key}.")
+    db_execute(
+        f"""
+        CREATE SCHEMA IF NOT EXISTS loads;
+        CREATE TABLE IF NOT EXISTS loads.{load_key}
+        AS SELECT
+            {id_col} as id,
+            False as loaded,
+            {geom_col} as geom
+        FROM {template_db_schema}.{template_db_table};
+        """
+    )
+
+
+def tracking_state_reset_loaded(load_key: str, bounds_id: str) -> None:
+    """ """
+    logger.info(f"Setting loaded state to False for bounds id {bounds_id}.")
+    db_execute(
+        f"""
+        UPDATE loads.{load_key}
+        SET loaded = false
+        WHERE id = {bounds_id} 
+        """
+    )
+
+
+def tracking_state_check_loaded(load_key: str, bounds_id: str) -> bool:
+    loaded = db_fetch(
+        f"""
+        SELECT loaded
+        FROM loads.{load_key}
+        WHERE id = {bounds_id};
+    """
+    )[0][0]
+    logger.info(f"Checking if bounds id {bounds_id} is loaded: {loaded}.")
+    return bool(loaded)
+
+
+def tracking_state_set_loaded(load_key: str, bounds_id: str):
+    """ """
+    logger.info(f"Setting loaded state to True for bounds id {bounds_id}.")
+    db_execute(
+        f"""
+        UPDATE loads.{load_key}
+        SET loaded = true
+        WHERE id = {bounds_id}
+        """
+    )
+
+
+def drop_content(
+    target_db_schema: str,
+    target_db_table: str,
+    bounds_schema: str,
+    bounds_table: str,
+    bounds_geom_col: str,
+    bounds_id_col: str,
+    bounds_id: str,
+) -> None:
+    """ """
+    if check_table_exists(target_db_schema, target_db_table):
+        logger.warning(f"Dropping content from {target_db_schema}.{target_db_table} for bounds: {bounds_id}")
+        db_execute(
+            f"""
+            DELETE FROM {target_db_schema}.{target_db_table} target
+            WHERE NOT EXISTS (
+                SELECT 1
+                FROM {bounds_schema}.{bounds_table} bounds
+                WHERE ST_Intersects(target.geom, bounds.{bounds_geom_col})
+                    AND bounds.{bounds_id_col} = {bounds_id}
+            );
+            """
+        )
+
+
+def create_gpkg_spatial_index(gpkg_path: str | Path) -> None:
+    """ """
+    gpkg_ds = ogr.Open(gpkg_path, update=True)
+    if gpkg_ds:
+        num_layers = gpkg_ds.GetLayerCount()
+        for i in range(num_layers):
+            layer = gpkg_ds.GetLayerByIndex(i)
+            layer_name = layer.GetName()
+            geom_col_name = layer.GetGeometryColumn()
+            if not geom_col_name:
+                continue
+            try:
+                subprocess.run(
+                    ["ogrinfo", "-sql", f"SELECT CreateSpatialIndex('{layer_name}', '{geom_col_name}')", gpkg_path],
+                    check=True,  # Check for command success
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    text=True,  # Capture output as text
+                )
+            except subprocess.CalledProcessError as err:
+                logger.error(err.stdout)
+                logger.error(err.stderr)
+                raise err
+
+        # Close the GeoPackage
+        gpkg_ds = None
