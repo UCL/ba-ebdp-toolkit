@@ -76,7 +76,7 @@ def load_tree_canopies(data_dir_path: str) -> None:
                             if_exists="append",
                             schema="eu",
                             index=True,
-                            index_label="temp_id",
+                            index_label="temp_fid",
                         )
             # Delete the unzipped files
             shutil.rmtree(unzip_dir)
@@ -84,7 +84,7 @@ def load_tree_canopies(data_dir_path: str) -> None:
         """
         ALTER TABLE eu.trees ADD COLUMN fid serial;
         ALTER TABLE eu.trees ADD PRIMARY KEY (fid);
-        ALTER TABLE eu.trees DROP COLUMN temp_id;
+        ALTER TABLE eu.trees DROP COLUMN temp_fid;
         """
     )
 

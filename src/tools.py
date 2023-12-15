@@ -90,16 +90,16 @@ def split_street_segment(
         # filter down connectors
         new_connectors: list[tuple[str, geometry.Point]] = []
         # if the point doesn't touch the line, discard
-        for _id, _point in old_connectors:
+        for _fid, _point in old_connectors:
             if _point.distance(old_line_string) > 0:
                 continue
-            new_connectors.append((_id, _point))
+            new_connectors.append((_fid, _point))
         # if only two connectors, check that these are endpoints and continue
         if len(new_connectors) == 2:
             node_segment_pairs.append((old_line_string, *new_connectors))
             continue
         # look for splits
-        for _id, _point in new_connectors:
+        for _fid, _point in new_connectors:
             splits = ops.split(old_line_string, _point)
             # continue if an endpoint
             if len(splits.geoms) == 1:
@@ -148,22 +148,22 @@ def generate_graph(
             if edges_data[road_class_col] in drop_road_classes:
                 continue
             kept_road_types.add(edges_data[road_class_col])
-        uniq_ids = set()
-        connector_ids: list[str] = json.loads(edges_data.connectors)
+        uniq_fids = set()
+        connector_fids: list[str] = json.loads(edges_data.connectors)
         connector_infos: list[tuple[str, geometry.Point]] = []
         missing_connectors = False
-        for connector_id in connector_ids:
+        for connector_fid in connector_fids:
             # skip malformed edges - this happens at boundary thresholds with missing nodes in relation to edges
-            if connector_id not in multigraph:
+            if connector_fid not in multigraph:
                 missing_connectors = True
                 break
             # deduplicate
-            x, y = multigraph.nodes[connector_id]["x"], multigraph.nodes[connector_id]["y"]
+            x, y = multigraph.nodes[connector_fid]["x"], multigraph.nodes[connector_fid]["y"]
             xy_key = f"{x}-{y}"
             merged_key = node_map[xy_key]
-            if merged_key in uniq_ids:
+            if merged_key in uniq_fids:
                 continue
-            uniq_ids.add(merged_key)
+            uniq_fids.add(merged_key)
             # track
             connector_point = geometry.Point(x, y)
             connector_infos.append((merged_key, connector_point))
@@ -287,7 +287,7 @@ def snip_overture_by_extents(
                 check=True,
             )
             break
-        except Exception as err:
+        except subprocess.CalledProcessError as err:
             if attempts > 0:
                 logger.error(f"Encountered error with ogr2ogr, reattempting after 1s; {attempts} attempts remaining.")
                 time.sleep(1)  # try sleeping to give time for database locks to release
@@ -302,22 +302,24 @@ def snip_overture_by_extents(
     return gdf
 
 
-def iter_boundaries(db_schema: str, db_table: str, id_col: str, geom_col: str, wgs84: bool) -> list[geometry.Polygon]:
+def iter_boundaries(
+    db_schema: str, db_table: str, fid_col: int | str, geom_col: str, wgs84: bool
+) -> list[tuple[int | str, geometry.Polygon]]:
     """ """
     if wgs84:
         bound_records = db_fetch(
             f"""
-            SELECT {id_col} as id, ST_Transform({geom_col}, 4326) as geom
+            SELECT {fid_col} as fid, ST_Transform({geom_col}, 4326) as geom
             FROM {db_schema}.{db_table}
-            ORDER BY id DESC
+            ORDER BY fid DESC
             """
         )
     else:
         bound_records = db_fetch(
             f"""
-            SELECT {id_col} as id, {geom_col} as geom
+            SELECT {fid_col} as fid, {geom_col} as geom
             FROM {db_schema}.{db_table}
-            ORDER BY id
+            ORDER BY fid
             """
         )
     boundaries = []
@@ -352,7 +354,7 @@ def check_table_exists(db_schema: str, db_table: str) -> bool:
 
 
 def init_tracking_table(
-    load_key: str, template_db_schema: str, template_db_table: str, id_col: str, geom_col: str
+    load_key: str, template_db_schema: str, template_db_table: str, fid_col: int | str, geom_col: str
 ) -> None:
     """ """
     logger.info(f"Creating loading extents tracking table if not found: loads.{load_key}.")
@@ -361,7 +363,7 @@ def init_tracking_table(
         CREATE SCHEMA IF NOT EXISTS loads;
         CREATE TABLE IF NOT EXISTS loads.{load_key}
         AS SELECT
-            {id_col} as id,
+            {fid_col} as fid,
             False as loaded,
             {geom_col} as geom
         FROM {template_db_schema}.{template_db_table};
@@ -369,38 +371,38 @@ def init_tracking_table(
     )
 
 
-def tracking_state_reset_loaded(load_key: str, bounds_id: str) -> None:
+def tracking_state_reset_loaded(load_key: str, bounds_fid: int | str) -> None:
     """ """
-    logger.info(f"Setting loaded state to False for bounds id {bounds_id}.")
+    logger.info(f"Setting loaded state to False for bounds fid {bounds_fid}.")
     db_execute(
         f"""
         UPDATE loads.{load_key}
         SET loaded = false
-        WHERE id = {bounds_id} 
+        WHERE fid = {bounds_fid} 
         """
     )
 
 
-def tracking_state_check_loaded(load_key: str, bounds_id: str) -> bool:
+def tracking_state_check_loaded(load_key: str, bounds_fid: int | str) -> bool:
     loaded = db_fetch(
         f"""
         SELECT loaded
         FROM loads.{load_key}
-        WHERE id = {bounds_id};
+        WHERE fid = {bounds_fid};
     """
     )[0][0]
-    logger.info(f"Checking if bounds id {bounds_id} is loaded: {loaded}.")
+    logger.info(f"Checking if bounds fid {bounds_fid} is loaded: {loaded}.")
     return bool(loaded)
 
 
-def tracking_state_set_loaded(load_key: str, bounds_id: str):
+def tracking_state_set_loaded(load_key: str, bounds_fid: int | str):
     """ """
-    logger.info(f"Setting loaded state to True for bounds id {bounds_id}.")
+    logger.info(f"Setting loaded state to True for bounds fid {bounds_fid}.")
     db_execute(
         f"""
         UPDATE loads.{load_key}
         SET loaded = true
-        WHERE id = {bounds_id}
+        WHERE fid = {bounds_fid}
         """
     )
 
@@ -422,12 +424,12 @@ def drop_content(
     bounds_schema: str,
     bounds_table: str,
     bounds_geom_col: str,
-    bounds_id_col: str,
-    bounds_id: str,
+    bounds_fid_col: str,
+    bounds_fid: int | str,
 ) -> None:
     """ """
     if check_table_exists(target_db_schema, target_db_table):
-        logger.warning(f"Dropping content from {target_db_schema}.{target_db_table} for bounds: {bounds_id}")
+        logger.warning(f"Dropping content from {target_db_schema}.{target_db_table} for bounds: {bounds_fid}")
         db_execute(
             f"""
             DELETE FROM {target_db_schema}.{target_db_table} target
@@ -435,7 +437,7 @@ def drop_content(
                 SELECT 1
                 FROM {bounds_schema}.{bounds_table} bounds
                 WHERE ST_Intersects(target.geom, bounds.{bounds_geom_col})
-                    AND bounds.{bounds_id_col} = {bounds_id}
+                    AND bounds.{bounds_fid_col} = {bounds_fid}
             );
             """
         )

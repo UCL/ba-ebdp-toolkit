@@ -103,7 +103,7 @@ def extract_boundary_polys(src_schema_name: str, bounds_raster_table_name: str) 
                 eu.bounds
         )
         SELECT 
-            ROW_NUMBER() OVER (ORDER BY ST_Area(geom) DESC) AS id, 
+            ROW_NUMBER() OVER (ORDER BY ST_Area(geom) DESC) AS fid, 
             geom
         FROM 
             unioned_geoms;
@@ -130,7 +130,7 @@ def extract_boundary_polys(src_schema_name: str, bounds_raster_table_name: str) 
                 eu.bounds
         )
         SELECT 
-            ROW_NUMBER() OVER (ORDER BY ST_Area(geom) DESC) AS id, 
+            ROW_NUMBER() OVER (ORDER BY ST_Area(geom) DESC) AS fid, 
             geom
         FROM 
             unioned_geoms;

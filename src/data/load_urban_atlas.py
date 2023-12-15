@@ -94,7 +94,7 @@ def load_urban_blocks(data_dir_path: str) -> None:
                             if_exists="append",
                             schema="eu",
                             index=True,
-                            index_label="temp_id",
+                            index_label="temp_fid",
                         )
             # Delete the unzipped files
             shutil.rmtree(unzip_dir)
@@ -102,7 +102,7 @@ def load_urban_blocks(data_dir_path: str) -> None:
         """
         ALTER TABLE eu.blocks ADD COLUMN fid serial;
         ALTER TABLE eu.blocks ADD PRIMARY KEY (fid);
-        ALTER TABLE eu.blocks DROP COLUMN temp_id;
+        ALTER TABLE eu.blocks DROP COLUMN temp_fid;
     """
     )
 

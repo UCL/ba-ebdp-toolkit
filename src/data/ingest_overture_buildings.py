@@ -14,25 +14,25 @@ engine = tools.get_sqlalchemy_engine()
 
 
 def process_extent_buildings(
-    bounds_id: str,
+    bounds_fid: str,
     bounds_geom: geometry.Polygon,
     overture_buildings_path: str | Path,
     bin_path: str | None = None,
 ):
     """ """
     buildings_gdf = tools.snip_overture_by_extents(overture_buildings_path, bounds_geom, "buildings", bin_path)
-    buildings_gdf.set_index("id", inplace=True)
+    buildings_gdf.set_index("fid", inplace=True)
     buildings_gdf.rename(columns={"geometry": "geom"}, inplace=True)
     buildings_gdf.set_geometry("geom", inplace=True)
     buildings_gdf["bounds_key"] = "unioned_bounds_2000"
-    buildings_gdf["bounds_fid"] = bounds_id
+    buildings_gdf["bounds_fid"] = bounds_fid
     buildings_gdf.to_crs(3035).to_postgis(
         "overture_buildings", engine, if_exists="append", schema="overture", index=True, index_label="fid"
     )
     tools.db_execute(
         f"""
         DELETE FROM overture.overture_buildings bldgs
-        WHERE bounds_fid = {bounds_id} AND NOT EXISTS (
+        WHERE bounds_fid = {bounds_fid} AND NOT EXISTS (
             SELECT 1 
             FROM bounds.unioned_bounds_2000 b
             WHERE ST_Contains(b.geom, p.geom)
@@ -55,13 +55,13 @@ def load_overture_buildings(
     tools.prepare_schema("overture")
     # setup load tracking
     load_key = "overture_buildings"
-    tools.init_tracking_table(load_key, "eu", "unioned_bounds_2000", "id", "geom")
+    tools.init_tracking_table(load_key, "eu", "unioned_bounds_2000", "fid", "geom")
     # get bounds
-    bounds_ids_geoms = tools.iter_boundaries("eu", "unioned_bounds_2000", "id", "geom", wgs84=True)
+    bounds_fids_geoms = tools.iter_boundaries("eu", "unioned_bounds_2000", "fid", "geom", wgs84=True)
     # generate indices on input GPKG
     tools.create_gpkg_spatial_index(overture_buildings_path)
     # iter
-    for bound_id, bound_geom in tqdm(bounds_ids_geoms):
+    for bound_fid, bound_geom in tqdm(bounds_fids_geoms):
         if drop is True:
             tools.drop_content(
                 "overture",
@@ -69,21 +69,21 @@ def load_overture_buildings(
                 "eu",
                 "unioned_bounds_2000",
                 "geom",
-                "id",
-                bound_id,
+                "fid",
+                bound_fid,
             )
-            tools.tracking_state_reset_loaded(load_key, bound_id)
-        loaded = tools.tracking_state_check_loaded(load_key, bound_id)
+            tools.tracking_state_reset_loaded(load_key, bound_fid)
+        loaded = tools.tracking_state_check_loaded(load_key, bound_fid)
         if loaded is True:
             continue
-        logger.info(f"Processing eu.unioned_bounds_2000 bounds id {bound_id}")
+        logger.info(f"Processing eu.unioned_bounds_2000 bounds fid {bound_fid}")
         process_extent_buildings(
-            bound_id,
+            bound_fid,
             bound_geom,
             overture_buildings_path,
             bin_path,
         )
-        tools.tracking_state_set_loaded(load_key, bound_id)
+        tools.tracking_state_set_loaded(load_key, bound_fid)
 
 
 if __name__ == "__main__":

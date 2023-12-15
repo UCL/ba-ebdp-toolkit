@@ -156,27 +156,27 @@ ALTER TABLE {bldg_hts_table_name}
     ADD COLUMN max_rast_ht real;
 WITH ClippedRasters AS (
     SELECT
-        p.fid AS region_id,
+        p.fid AS region_fid,
         ST_Clip(r.rast, ST_Transform(p.geom, 3035)) AS clipped_rast
     FROM
         {input_rast_bldg_hts_table} r
     JOIN {bldg_hts_table_name} p ON ST_Intersects(ST_Transform(p.geom, 3035), r.rast)
 ), RasterValues AS (
     SELECT
-        region_id,
+        region_fid,
         unnest((ST_DumpValues(clipped_rast)).valarray) as un
     FROM
         ClippedRasters
 ), MaxRasterValues AS (
     SELECT
-        region_id,
+        region_fid,
         MAX(un) as max_val
     FROM RasterValues
     WHERE un IS NOT NULL
-    GROUP BY region_id
+    GROUP BY region_fid
 )
 UPDATE {bldg_hts_table_name} ob
     SET max_rast_ht = mv.max_val
     FROM MaxRasterValues mv
-    WHERE mv.region_id = ob.fid;
+    WHERE mv.region_fid = ob.fid;
 ```
