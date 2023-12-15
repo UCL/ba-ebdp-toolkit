@@ -54,7 +54,7 @@ def get_sqlalchemy_engine() -> sqlalchemy.engine.Engine:
         f"postgresql+psycopg2://{db_config['user']}:{db_config['password']}"
         f"@{db_config['host']}:{db_config['port']}/{db_config['database']}"
     )
-    return sqlalchemy.create_engine(db_con_str)
+    return sqlalchemy.create_engine(db_con_str, pool_pre_ping=True)
 
 
 def db_execute(query: str, params: tuple[Any] | None = None) -> None:
