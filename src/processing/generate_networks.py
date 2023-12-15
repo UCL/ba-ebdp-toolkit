@@ -1,5 +1,6 @@
-# pyright: basic
 """ """
+from __future__ import annotations
+
 import argparse
 
 import geopandas as gpd

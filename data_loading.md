@@ -47,10 +47,10 @@ Of these, the raster 2018 high density clusters is used
 /Applications/Postgres.app/Contents/Versions/15/bin/psql -h localhost -U editor -d t2e -W -p 5435 -f output.sql
 ```
 
-- Run the `generate_boundary_polys.py` script to generate the vector boundaries from the raster source. Provide the schema name, the table name of the high density clusters per above upload, and the output table name for the polygon boundaries. This script will automatically remove boundaries intersecting the UK.
+- Run the `generate_boundary_polys.py` script to generate the vector boundaries from the raster source. Provide the source schema name and the table name of the high density cluster raster per above upload. The output polygons will be generated to the `eu` schema in tables named `bounds`, `unioned_bounds_2000`, and `unioned_bounds_10000`. This script will automatically remove boundaries intersecting the UK.
 
 ```bash
-python -m src.data.generate_boundary_polys eu hdens_clusters bounds
+python -m src.data.generate_boundary_polys eu hdens_clusters
 ```
 
 ## Population Density
@@ -79,20 +79,20 @@ python -m src.data.generate_boundary_polys eu hdens_clusters bounds
 
 [urban atlas](https://land.copernicus.eu/local/urban-atlas/urban-atlas-2018) (~37GB vectors)
 
-- Run the `load_urban_atlas.py` script to upload the data. Provide the path to the input directory with the zipped data files. Also specify the schema, boundaries table name, and the output table name for the new urban atlas blocks table. For example:
+- Run the `load_urban_atlas.py` script to upload the data. Provide the path to the input directory with the zipped data files. The blocks will be loaded to the `blocks` table in the `eu` schema.
 
 ```bash
-python -m src.data.load_urban_atlas "./temp/urban atlas" eu bounds blocks
+python -m src.data.load_urban_atlas "./temp/urban atlas"
 ```
 
 ## Tree cover
 
 [Tree cover](https://land.copernicus.eu/local/urban-atlas/street-tree-layer-stl-2018) (~36GB vectors).
 
-- Run the `load_urban_atlas_trees.py` script to upload the data. Provide the path to the input directory with the zipped data files. Also specify the schema, boundaries table name, and the output table name for the new trees table. For example:
+- Run the `load_urban_atlas_trees.py` script to upload the data. Provide the path to the input directory with the zipped data files. The trees will be loaded to the `trees` table in the `eu` schema.
 
 ```bash
-python -m src.data.load_urban_atlas_trees "./temp/urban atlas trees" eu bounds trees
+python -m src.data.load_urban_atlas_trees "./temp/urban atlas trees"
 ```
 
 ## Building Heights
@@ -101,10 +101,10 @@ python -m src.data.load_urban_atlas_trees "./temp/urban atlas trees" eu bounds t
 
 > NOTE: This workflow assumes you're running the model for the entirety of the EU. If running a smaller extent, then only the necessary files need to be downloaded and can be uploaded using a similar process to the Population Density example.
 
-- Run the `load_bldg_hts_raster.py` script to upload the data. Provide the path to the input directory with the zipped data files. Also specify the schema, table name, and the optional argument `--bin_path` to provide a path to the `bin` directory for your `postgres` installation. For example:
+- Run the `load_bldg_hts_raster.py` script to upload the building heights data. Provide the path to the input directory with the zipped data files. Use the optional argument `--bin_path` to provide a path to the `bin` directory for your `postgres` installation. The raster will be loaded to the `bldg_hts` table in the `eu` schema.
 
 ```bash
-python -m src.data.load_bldg_hts_raster "./temp/Digital height Model EU" eu bldg_hts --bin_path /Applications/Postgres.app/Contents/Versions/15/bin/
+python -m src.data.load_bldg_hts_raster "./temp/Digital height Model EU" --bin_path /Applications/Postgres.app/Contents/Versions/15/bin/
 ```
 
 ## Downloading Overture data
@@ -128,22 +128,22 @@ The download sizes for the EU are:
 
 ## Ingesting Overture data
 
-Upload overture network data (nodes and edges) using the `ingest_networks.py` script. Pass the `--drop` flag if you want to drop and therefore replace existing tables.
+Upload overture network data (nodes and edges) using the `ingest_networks.py` script. Pass the `--drop` flag if you want to drop and therefore replace existing tables. The loading scripts will otherwise track which boundary extents are loaded and will resume if interrupted. The tables will be uploaded to the `overture` schema.
 
 ```bash
-python -m src.data.ingest_overture_networks 'temp/eu_nodes.gpkg' 'temp/eu_edges.gpkg' eu unioned_bounds_10000 id geom overture
+python -m src.data.ingest_overture_networks 'temp/eu_nodes.gpkg' 'temp/eu_edges.gpkg'
 ```
 
-Places is similar but use a smaller bounds since smaller distance thresholds are used:
+Places is similar:
 
 ```bash
-python -m src.data.ingest_overture_places 'temp/eu_places.gpkg' eu unioned_bounds_2000 id geom overture
+python -m src.data.ingest_overture_places 'temp/eu_places.gpkg'
 ```
 
-Buildings:
+As is buildings:
 
 ```bash
-python -m src.data.ingest_overture_buildings 'temp/eu_buildings.gpkg' eu unioned_bounds_2000 id geom overture
+python -m src.data.ingest_overture_buildings 'temp/eu_buildings.gpkg'
 ```
 
 ## Pending

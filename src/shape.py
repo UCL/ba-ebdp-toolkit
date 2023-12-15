@@ -3,6 +3,8 @@ THIS IS TEMPORARY
 HANDLES MULTIPOLYGONS FOR Squareness AND CentroidCorners
 CAN BE REMOVED IF MOMEPY MERGES PULL REQUEST: https://github.com/pysal/momepy/pull/507
 """
+from __future__ import annotations
+
 import numpy as np
 import pandas as pd
 from shapely.geometry import Point

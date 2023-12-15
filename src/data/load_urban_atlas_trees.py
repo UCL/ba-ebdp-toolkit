@@ -1,3 +1,6 @@
+""" """
+from __future__ import annotations
+
 import argparse
 import os
 import shutil
@@ -14,24 +17,17 @@ from src import tools
 logger = tools.get_logger(__name__)
 
 
-def load_tree_canopies(dir_path_str: str, schema_name: str, bounds_table_name: str, trees_table_name: str) -> None:
+def load_tree_canopies(data_dir_path: str) -> None:
     """ """
-    # don't overwrite existing
-    table_exists: bool = tools.db_fetch(  # type: ignore
-        f"""
-        SELECT EXISTS (
-            SELECT 1 FROM information_schema.tables
-                WHERE table_schema = '{schema_name}' 
-                    AND table_name = '{trees_table_name}');
-        """
-    )[0][0]
-    if table_exists:
-        raise IOError(f"Destination schema and table {schema_name}.{trees_table_name} already exists; aborting.")
+    # check that the bounds table exists
+    if not tools.check_table_exists("eu", "bounds"):
+        raise IOError("The eu.bounds table does not exist; this needs to be created prior to proceeding.")
+    # drop existing
+    tools.drop_table("eu", "trees")
     # get bounds poly
-    bounds_wkb: str = tools.db_fetch(  # type: ignore
-        f"""
-        SELECT ST_Union(ST_Buffer(geom, 2000))
-            FROM {schema_name}.{bounds_table_name};
+    bounds_wkb: str = tools.db_fetch(
+        """
+        SELECT ST_Union(geom_2000) FROM eu.bounds;
         """
     )[0][0]
     bounds_geom: geometry.Polygon = wkb.loads(bounds_wkb, hex=True)  # type: ignore
@@ -42,7 +38,7 @@ def load_tree_canopies(dir_path_str: str, schema_name: str, bounds_table_name: s
     # prepare engine for GDF
     engine = tools.get_sqlalchemy_engine()
     # iter zip files and load if intersecting bounds
-    dir_path: Path = Path(dir_path_str)
+    dir_path: Path = Path(data_dir_path)
     unzip_dir = dir_path / "temp_unzipped/"
     for zip_file_name in tqdm(os.listdir(dir_path)):
         if zip_file_name.endswith(".zip"):
@@ -75,21 +71,20 @@ def load_tree_canopies(dir_path_str: str, schema_name: str, bounds_table_name: s
                         # write to postgis
                         cols = ["fua_name", "fua_code", "geom"]
                         gdf_exp[cols].to_postgis(
-                            trees_table_name,
+                            "trees",
                             engine,
                             if_exists="append",
-                            schema=schema_name,
+                            schema="eu",
                             index=True,
                             index_label="temp_id",
                         )
             # Delete the unzipped files
-            # TODO: why is this raising?
             shutil.rmtree(unzip_dir)
     tools.db_execute(
-        f"""
-        ALTER TABLE {schema_name}.{trees_table_name} ADD COLUMN fid serial;
-        ALTER TABLE {schema_name}.{trees_table_name} ADD PRIMARY KEY (fid);
-        ALTER TABLE {schema_name}.{trees_table_name} DROP COLUMN temp_id;
+        """
+        ALTER TABLE eu.trees ADD COLUMN fid serial;
+        ALTER TABLE eu.trees ADD PRIMARY KEY (fid);
+        ALTER TABLE eu.trees DROP COLUMN temp_id;
         """
     )
 
@@ -97,19 +92,18 @@ def load_tree_canopies(dir_path_str: str, schema_name: str, bounds_table_name: s
 if __name__ == "__main__":
     """
     Examples are run from the project folder (the folder containing src)
-    python -m src.data.load_urban_atlas_trees "./temp/urban atlas trees" eu bounds trees
+    python -m src.data.load_urban_atlas_trees "./temp/urban"
     """
-    parser = argparse.ArgumentParser(description="Load building heights raster data.")
-    parser.add_argument("data_dir_path", type=str, help="Input data directory with zipped data files.")
-    parser.add_argument("schema_name", type=str, help="Schema name.")
-    parser.add_argument("bounds_table_name", type=str, help="Table name for already loaded urban boundaries.")
-    parser.add_argument("trees_table_name", type=str, help="Table name for trees data.")
-    args = parser.parse_args()
-    logger.info(f"Loading trees data from path: {args.data_dir_path}")
-    data_dir_path = Path(args.data_dir_path)
-    if not data_dir_path.exists():
-        raise IOError("Input directory does not exist")
-    if not data_dir_path.is_dir():
-        raise IOError("Expected input directory, not a file name")
-    load_tree_canopies(args.data_dir_path, args.schema_name, args.bounds_table_name, args.trees_table_name)
-    # load_tree_canopies("./temp/urban atlas trees", "eu", "bounds", "trees")
+    if True:
+        parser = argparse.ArgumentParser(description="Load building heights raster data.")
+        parser.add_argument("data_dir_path", type=str, help="Input data directory with zipped data files.")
+        args = parser.parse_args()
+        logger.info(f"Loading trees data from path: {args.data_dir_path}")
+        data_dir_path = Path(args.data_dir_path)
+        if not data_dir_path.exists():
+            raise IOError("Input directory does not exist")
+        if not data_dir_path.is_dir():
+            raise IOError("Expected input directory, not a file name")
+        load_tree_canopies(args.data_dir_path)
+    else:
+        load_tree_canopies("./temp/urban atlas trees")

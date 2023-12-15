@@ -1,3 +1,4 @@
+""" """
 from __future__ import annotations
 
 import argparse
@@ -19,10 +20,6 @@ def process_extent_places(
     bounds_id: str,
     bounds_geom: geometry.Polygon,
     overture_places_path: str | Path,
-    bounds_schema: str,
-    bounds_table: str,
-    bounds_geom_col: str,
-    overture_schema_name: str,
     bin_path: str | None = None,
 ):
     """ """
@@ -55,18 +52,18 @@ def process_extent_places(
     places_gdf["alt_cat"] = places_gdf["categories"].apply(extract_alt_cat)
     places_gdf["common_name"] = places_gdf["names"].apply(extract_name)
     places_gdf["major_cat"] = places_gdf["main_cat"].apply(assign_major_cat)
-    places_gdf["bounds_key"] = bounds_table
+    places_gdf["bounds_key"] = "unioned_bounds_2000"
     places_gdf["bounds_fid"] = bounds_id
     places_gdf.to_crs(3035).to_postgis(
-        "overture_places", engine, if_exists="append", schema=overture_schema_name, index=True, index_label="fid"
+        "overture_places", engine, if_exists="append", schema="overture", index=True, index_label="fid"
     )
     tools.db_execute(
         f"""
-        DELETE FROM {overture_schema_name}.overture_places p
+        DELETE FROM overture.overture_places p
         WHERE bounds_fid = {bounds_id} AND NOT EXISTS (
             SELECT 1 
-            FROM {bounds_schema}.{bounds_table} b
-            WHERE ST_Contains(b.{bounds_geom_col}, p.geom)
+            FROM bounds.unioned_bounds_2000 b
+            WHERE ST_Contains(b.geom, p.geom)
         );
         """
     )
@@ -74,50 +71,44 @@ def process_extent_places(
 
 def load_overture_places(
     overture_places_path: str | Path,
-    bounds_schema: str,
-    bounds_table: str,
-    bounds_id_col: str,
-    bounds_geom_col: str,
-    overture_schema_name: str,
     bin_path: str | None = None,
     drop: bool = False,
 ) -> None:
     """ """
+    # check that the bounds table exists
+    if not tools.check_table_exists("eu", "bounds"):
+        raise IOError("The eu.bounds table does not exist; this needs to be created prior to proceeding.")
     logger.info("Loading overture places")
     # create schema if necessary
-    tools.prepare_schema(overture_schema_name)
+    tools.prepare_schema("overture")
     # setup load tracking
     load_key = "overture_places"
-    tools.init_tracking_table(load_key, bounds_schema, bounds_table, bounds_id_col, bounds_geom_col)
+    tools.init_tracking_table(load_key, "eu", "unioned_bounds_2000", "id", "geom")
     # get bounds
-    bounds_ids_geoms = tools.iter_boundaries(bounds_schema, bounds_table, bounds_id_col, bounds_geom_col, wgs84=True)
+    bounds_ids_geoms = tools.iter_boundaries("eu", "unioned_bounds_2000", "id", "geom", wgs84=True)
     # generate indices on input GPKG
     tools.create_gpkg_spatial_index(overture_places_path)
     # iter
     for bound_id, bound_geom in tqdm(bounds_ids_geoms):
         if drop is True:
             tools.drop_content(
-                overture_schema_name,
+                "overture",
                 "overture_places",
-                bounds_schema,
-                bounds_table,
-                bounds_geom_col,
-                bounds_id_col,
+                "eu",
+                "unioned_bounds_2000",
+                "geom",
+                "id",
                 bound_id,
             )
             tools.tracking_state_reset_loaded(load_key, bound_id)
         loaded = tools.tracking_state_check_loaded(load_key, bound_id)
         if loaded is True:
             continue
-        logger.info(f"Processing {bounds_schema}.{bounds_table} bounds id {bound_id}")
+        logger.info(f"Processing eu.unioned_bounds_2000 bounds id {bound_id}")
         process_extent_places(
             bound_id,
             bound_geom,
             overture_places_path,
-            bounds_schema,
-            bounds_table,
-            bounds_geom_col,
-            overture_schema_name,
             bin_path,
         )
         tools.tracking_state_set_loaded(load_key, bound_id)
@@ -126,7 +117,7 @@ def load_overture_places(
 if __name__ == "__main__":
     """
     Examples are run from the project folder (the folder containing src)
-    python -m src.data.ingest_overture_places 'temp/eu_places.gpkg' eu unioned_bounds_2000 id geom overture
+    python -m src.data.ingest_overture_places 'temp/eu_places.gpkg'
     """
     if True:
         parser = argparse.ArgumentParser(description="Load overture places GPKG to DB.")
@@ -135,31 +126,16 @@ if __name__ == "__main__":
             type=str,
             help="Path to overture places dataset.",
         )
-        parser.add_argument("bounds_schema", type=str, help="Schema name for boundary polygons.")
-        parser.add_argument("bounds_table", type=str, help="Table name for boundary polygons.")
-        parser.add_argument("bounds_id_col", type=str, help="id column name for boundary polygons.")
-        parser.add_argument("bounds_geom_col", type=str, help="geometry column name for boundary polygons.")
-        parser.add_argument("overture_schema", type=str, help="Schema name for overture schema.")
         parser.add_argument("--bin_path", type=str, default=None, help="Optional bin path for ogr2ogr.")
         parser.add_argument("--drop", action="store_true", help="Whether to drop existing tables.")
         args = parser.parse_args()
         load_overture_places(
             args.overture_places_path,
-            args.bounds_schema,
-            args.bounds_table,
-            args.bounds_id_col,
-            args.bounds_geom_col,
-            args.overture_schema,
             bin_path=args.bin_path,
             drop=args.drop,
         )
     else:
         load_overture_places(
             "temp/eu_places.gpkg",
-            "eu",
-            "unioned_bounds_2000",
-            "id",
-            "geom",
-            "overture",
             drop=False,
         )

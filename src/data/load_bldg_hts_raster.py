@@ -1,3 +1,6 @@
+""" """
+from __future__ import annotations
+
 import argparse
 import os
 import shutil
@@ -12,21 +15,13 @@ db_config = tools.get_db_config()
 os.environ["PGPASSWORD"] = db_config["password"]  # type: ignore
 
 
-def load_bldg_hts(dir_path_str: str, schema_name: str, table_name: str, bin_path: str | None) -> None:
+def load_bldg_hts(data_dir_path: str, bin_path: str | None) -> None:
     """ """
-    table_exists: bool = tools.db_fetch(
-        f"""
-            SELECT EXISTS (
-                SELECT 1 FROM information_schema.tables
-                    WHERE table_schema = '{schema_name}' 
-                        AND table_name = '{table_name}');
-        """
-    )[0][0]
-    if table_exists:
-        raise IOError(f"Destination schema and table {schema_name}.{table_name} already exists; aborting.")
+    # drop existing
+    tools.drop_table("eu", "bldg_hts")
     # Loop through each ZIP file and upload TIFs
     first_file = True
-    dir_path: Path = Path(dir_path_str)
+    dir_path: Path = Path(data_dir_path)
     unzip_dir = dir_path / "temp_unzipped/"
     for zip_file_name in os.listdir(dir_path):
         if zip_file_name.endswith(".zip"):
@@ -54,7 +49,7 @@ def load_bldg_hts(dir_path_str: str, schema_name: str, table_name: str, bin_path
                                         "-s",
                                         "3035",
                                         full_raster_path,
-                                        f"{schema_name}.{table_name}",
+                                        "eu.bldg_hts",
                                     ],
                                     check=True,
                                     stdout=f,
@@ -83,10 +78,10 @@ def load_bldg_hts(dir_path_str: str, schema_name: str, table_name: str, bin_path
             first_file = False
     # add constraints
     tools.db_execute(
-        f"""
+        """
         SELECT AddRasterConstraints(
-            '{schema_name}'::name, 
-            '{table_name}'::name, 
+            'eu'::name, 
+            'bldg_hts'::name, 
             'rast'::name,
             'blocksize',
             'extent',
@@ -94,8 +89,8 @@ def load_bldg_hts(dir_path_str: str, schema_name: str, table_name: str, bin_path
             'pixel_types',
             'srid'
         );
-        CREATE INDEX {table_name}_rast_gist_idx
-            ON {schema_name}.{table_name}
+        CREATE INDEX bldg_hts_rast_gist_idx
+            ON eu.bldg_hts
             USING gist (ST_ConvexHull(rast));
         """
     )
@@ -109,8 +104,6 @@ if __name__ == "__main__":
     if True:
         parser = argparse.ArgumentParser(description="Load building heights raster data.")
         parser.add_argument("data_dir_path", type=str, help="Input data directory with zipped data files.")
-        parser.add_argument("schema_name", type=str, help="Schema name.")
-        parser.add_argument("table_name", type=str, help="Table name.")
         parser.add_argument(
             "--bin_path", type=str, required=False, default=None, help="Optional 'bin' path for raster2pgsql and psql."
         )
@@ -121,8 +114,6 @@ if __name__ == "__main__":
             raise IOError("Input directory does not exist")
         if not data_dir_path.is_dir():
             raise IOError("Expected input directory, not a file name")
-        load_bldg_hts(args.data_dir_path, args.schema_name, args.table_name, args.bin_path)
+        load_bldg_hts(args.data_dir_path, args.bin_path)
     else:
-        load_bldg_hts(
-            "./temp/Digital Height Model EU", "eu", "bldg_hts", "/Applications/Postgres.app/Contents/Versions/16/bin/"
-        )
+        load_bldg_hts("./temp/Digital Height Model EU", "/Applications/Postgres.app/Contents/Versions/16/bin/")

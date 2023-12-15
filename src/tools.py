@@ -1,4 +1,3 @@
-# pyright: basic
 """ """
 from __future__ import annotations
 
@@ -404,6 +403,17 @@ def tracking_state_set_loaded(load_key: str, bounds_id: str):
         WHERE id = {bounds_id}
         """
     )
+
+
+def drop_table(target_db_schema: str, target_db_table: str) -> None:
+    """ """
+    if check_table_exists(target_db_schema, target_db_table):
+        logger.warning(f"Dropping table {target_db_schema}.{target_db_table}")
+        db_execute(
+            f"""
+            DROP TABLE {target_db_schema}.{target_db_table};
+            """
+        )
 
 
 def drop_content(

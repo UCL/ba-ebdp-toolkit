@@ -1,3 +1,6 @@
+""" """
+from __future__ import annotations
+
 import argparse
 
 import geopandas as gpd
@@ -13,13 +16,13 @@ logger = tools.get_logger(__name__)
 engine = tools.get_sqlalchemy_engine()
 
 
-def extract_boundary_polys(schema_name: str, bounds_raster_table_name: str, bounds_table_name: str) -> None:
+def extract_boundary_polys(src_schema_name: str, bounds_raster_table_name: str) -> None:
     # may need raster support to be enabled on DB
     # fetch eu high density clusters
     raster_result = tools.db_fetch(
         f"""
         SELECT ST_AsTiff(ST_Union(r.rast))
-            FROM {schema_name}.{bounds_raster_table_name} r;
+            FROM {src_schema_name}.{bounds_raster_table_name} r;
         """
     )[0][0]
     # fetch UK boundary to filter out
@@ -58,11 +61,12 @@ def extract_boundary_polys(schema_name: str, bounds_raster_table_name: str, boun
     bounds_gdf["geom_2000"] = bounds_gdf["geom"].buffer(2000)
     bounds_gdf["geom_10000"] = bounds_gdf["geom"].buffer(10000)
     # write to DB
+    tools.prepare_schema("eu")
     bounds_gdf.to_postgis(
-        bounds_table_name,
+        "bounds",
         engine,
         if_exists="replace",
-        schema=schema_name,
+        schema="eu",
         index=True,
         index_label="fid",
         dtype={
@@ -72,22 +76,22 @@ def extract_boundary_polys(schema_name: str, bounds_raster_table_name: str, boun
     )
     # add indices
     tools.db_execute(
-        f"""
-        CREATE INDEX {bounds_table_name}_2000_geom_idx
-            ON {schema_name}.{bounds_table_name} USING GIST (geom_2000);
+        """
+        CREATE INDEX bounds_2000_geom_idx
+            ON eu.bounds USING GIST (geom_2000);
                      """
     )
     tools.db_execute(
-        f"""
-        CREATE INDEX {bounds_table_name}_10000_geom_idx
-            ON {schema_name}.{bounds_table_name} USING GIST (geom_10000);
+        """
+        CREATE INDEX bounds_10000_geom_idx
+            ON eu.bounds USING GIST (geom_10000);
                      """
     )
     # create unioned boundaries
     tools.db_execute(
-        f"""
-        DROP TABLE IF EXISTS {schema_name}.unioned_{bounds_table_name}_2000;
-        CREATE TABLE {schema_name}.unioned_{bounds_table_name}_2000 AS
+        """
+        DROP TABLE IF EXISTS eu.unioned_bounds_2000;
+        CREATE TABLE eu.unioned_bounds_2000 AS
         WITH unioned_geoms AS (
             SELECT 
                 ST_MakePolygon(
@@ -96,7 +100,7 @@ def extract_boundary_polys(schema_name: str, bounds_raster_table_name: str, boun
                     )
                 )::geometry(POLYGON, 3035) AS geom
             FROM 
-                {schema_name}.{bounds_table_name}
+                eu.bounds
         )
         SELECT 
             ROW_NUMBER() OVER (ORDER BY ST_Area(geom) DESC) AS id, 
@@ -106,15 +110,15 @@ def extract_boundary_polys(schema_name: str, bounds_raster_table_name: str, boun
         """
     )
     tools.db_execute(
-        f"""
-        CREATE INDEX unioned_{bounds_table_name}_geom_2000_idx
-            ON {schema_name}.unioned_{bounds_table_name}_2000 USING GIST (geom);
+        """
+        CREATE INDEX unioned_bounds_geom_2000_idx
+            ON eu.unioned_bounds_2000 USING GIST (geom);
         """
     )
     tools.db_execute(
-        f"""
-        DROP TABLE IF EXISTS {schema_name}.unioned_{bounds_table_name}_10000;
-        CREATE TABLE {schema_name}.unioned_{bounds_table_name}_10000 AS
+        """
+        DROP TABLE IF EXISTS eu.unioned_bounds_10000;
+        CREATE TABLE eu.unioned_bounds_10000 AS
         WITH unioned_geoms AS (
             SELECT 
                 ST_MakePolygon(
@@ -123,7 +127,7 @@ def extract_boundary_polys(schema_name: str, bounds_raster_table_name: str, boun
                     )
                 )::geometry(POLYGON, 3035) AS geom
             FROM 
-                {schema_name}.{bounds_table_name}
+                eu.bounds
         )
         SELECT 
             ROW_NUMBER() OVER (ORDER BY ST_Area(geom) DESC) AS id, 
@@ -133,9 +137,9 @@ def extract_boundary_polys(schema_name: str, bounds_raster_table_name: str, boun
         """
     )
     tools.db_execute(
-        f"""
-        CREATE INDEX unioned_{bounds_table_name}_geom_10000_idx
-            ON {schema_name}.unioned_{bounds_table_name}_10000 USING GIST (geom);
+        """
+        CREATE INDEX unioned_bounds_geom_10000_idx
+            ON eu.unioned_bounds_10000 USING GIST (geom);
         """
     )
 
@@ -148,10 +152,9 @@ if __name__ == "__main__":
     logger.info(f"Converting raster boundaries to polygons.")
     if True:
         parser = argparse.ArgumentParser(description="Load building heights raster data.")
-        parser.add_argument("schema_name", type=str, help="Schema name.")
+        parser.add_argument("src_schema_name", type=str, help="Schema name.")
         parser.add_argument("bounds_raster_table_name", type=str, help="Table name for boundaries raster.")
-        parser.add_argument("bounds_table_name", type=str, help="Table name for output boundary polygons.")
         args = parser.parse_args()
-        extract_boundary_polys(args.schema_name, args.bounds_raster_table_name, args.bounds_table_name)
+        extract_boundary_polys(args.src_schema_name, args.bounds_raster_table_name)
     else:
-        extract_boundary_polys("eu", "hdens_clusters", "bounds")
+        extract_boundary_polys("eu", "hdens_clusters")
