@@ -51,7 +51,7 @@ def generate_clean_network(
             FROM {bounds_schema}.{bounds_table}
             WHERE fid = {bounds_fid}
         )
-        SELECT DISTINCT e.fid, connectors, road_class, surface, level, e.geom
+        SELECT DISTINCT e.fid, connectors, road, road_class, surface, level, e.geom
         FROM overture.overture_edges e, bounds b
         WHERE ST_Intersects(b.geom, e.geom)
         """,
@@ -175,7 +175,7 @@ def process_network(
 if __name__ == "__main__":
     """
     Examples are run from the project folder (the folder containing src)
-    python -m src.processing.generate_networks all --parallel_workers 2
+    python -m src.processing.generate_networks all --parallel_workers 7
     """
 
     def bounds_fid_type(value):
@@ -206,11 +206,11 @@ if __name__ == "__main__":
         args = parser.parse_args()
         process_network(
             args.bounds_fid,
-            args.overwrite,
+            args.drop,
             args.parallel_workers,
         )
     else:
-        bounds_fids = [436, 439]
+        bounds_fids = [78]
         process_network(
             bounds_fids,
             drop=False,

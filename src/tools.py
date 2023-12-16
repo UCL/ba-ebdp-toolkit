@@ -148,6 +148,11 @@ def generate_graph(
             if edges_data[road_class_col] in drop_road_classes:
                 continue
             kept_road_types.add(edges_data[road_class_col])
+        # drop tunnels
+        road_data = json.loads(edges_data["road"])
+        if "flags" in road_data:
+            if "isTunnel" in road_data["flags"]:
+                continue
         uniq_fids = set()
         connector_fids: list[str] = json.loads(edges_data.connectors)
         connector_infos: list[tuple[str, geometry.Point]] = []
