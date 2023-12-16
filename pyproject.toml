@@ -6,7 +6,7 @@ readme = "README.md"
 requires-python = ">=3.10, <3.12"
 license = { text = "AGPL-3.0" }
 authors = [{ name = "name", email = "" }]
-maintainers = [{ name = "name", email = "" }]
+maintainers = [{ name = "Gareth Simons", email = "" }]
 keywords = [
   "network-topology",
   "architecture",

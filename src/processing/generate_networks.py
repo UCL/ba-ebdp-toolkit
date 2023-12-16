@@ -186,7 +186,7 @@ if __name__ == "__main__":
         except ValueError:
             raise argparse.ArgumentTypeError(f"{value} is not a valid bounds_fid. It must be an integer or 'all'.")
 
-    if False:
+    if True:
         parser = argparse.ArgumentParser(description="Convert raw Overture nodes and edges to network.")
         parser.add_argument(
             "bounds_fid",

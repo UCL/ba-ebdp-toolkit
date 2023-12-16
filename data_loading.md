@@ -99,7 +99,7 @@ python -m src.data.load_urban_atlas_trees "./temp/urban atlas trees"
 
 [Digital Height Model](https://land.copernicus.eu/local/urban-atlas/building-height-2012) (~ 1GB raster).
 
-> NOTE: This workflow assumes you're running the model for the entirety of the EU. If running a smaller extent, then only the necessary files need to be downloaded and can be uploaded using a similar process to the Population Density example.
+> NOTE: This workflow assumes running the model for the entirety of the EU. If running a smaller extent, then only the necessary files need to be downloaded and can be uploaded using a similar process to the Population Density example.
 
 - Run the `load_bldg_hts_raster.py` script to upload the building heights data. Provide the path to the input directory with the zipped data files. Use the optional argument `--bin_path` to provide a path to the `bin` directory for your `postgres` installation. The raster will be loaded to the `bldg_hts` table in the `eu` schema.
 
@@ -128,7 +128,7 @@ The download sizes for the EU are:
 
 ## Ingesting Overture data
 
-Upload overture network data (nodes and edges) using the `ingest_networks.py` script. Pass the `--drop` flag if you want to drop and therefore replace existing tables. The loading scripts will otherwise track which boundary extents are loaded and will resume if interrupted. The tables will be uploaded to the `overture` schema.
+Upload overture network data (nodes and edges) using the `ingest_networks.py` script. Pass the `--drop` flag to drop and therefore replace existing tables. The loading scripts will otherwise track which boundary extents are loaded and will resume if interrupted. The tables will be uploaded to the `overture` schema.
 
 ```bash
 python -m src.data.ingest_overture_networks 'temp/eu_nodes.gpkg' 'temp/eu_edges.gpkg'
@@ -144,6 +144,14 @@ As is buildings:
 
 ```bash
 python -m src.data.ingest_overture_buildings 'temp/eu_buildings.gpkg'
+```
+
+## Network preparation and cleaning
+
+Subsequent steps make use of a cleaned network representation. Run the `generate_networks.py` script to generate the cleaned network, which will be saved to the `overture` schema. Pass the optional `parallel_workers` argument to specify the number of CPU cores to use.
+
+```bash
+python -m src.processing.generate_networks all --parallel_workers 2
 ```
 
 ## Pending
