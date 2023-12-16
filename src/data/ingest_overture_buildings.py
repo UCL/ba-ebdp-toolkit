@@ -10,31 +10,35 @@ from tqdm import tqdm
 from src import tools
 
 logger = tools.get_logger(__name__)
-engine = tools.get_sqlalchemy_engine()
 
 
 def process_extent_buildings(
-    bounds_fid: str,
+    bounds_fid: int | str,
     bounds_geom: geometry.Polygon,
+    bounds_schema: str,
+    bounds_table: str,
     overture_buildings_path: str | Path,
+    target_schema: str,
+    target_table: str,
     bin_path: str | None = None,
 ):
     """ """
+    engine = tools.get_sqlalchemy_engine()
     buildings_gdf = tools.snip_overture_by_extents(overture_buildings_path, bounds_geom, "buildings", bin_path)
     buildings_gdf.set_index("fid", inplace=True)
     buildings_gdf.rename(columns={"geometry": "geom"}, inplace=True)
     buildings_gdf.set_geometry("geom", inplace=True)
-    buildings_gdf["bounds_key"] = "unioned_bounds_2000"
+    buildings_gdf["bounds_key"] = bounds_table
     buildings_gdf["bounds_fid"] = bounds_fid
     buildings_gdf.to_crs(3035).to_postgis(
-        "overture_buildings", engine, if_exists="append", schema="overture", index=True, index_label="fid"
+        target_table, engine, if_exists="append", schema=target_schema, index=True, index_label="fid"
     )
     tools.db_execute(
         f"""
-        DELETE FROM overture.overture_buildings bldgs
+        DELETE FROM {target_schema}.{target_table} bldgs
         WHERE bounds_fid = {bounds_fid} AND NOT EXISTS (
             SELECT 1 
-            FROM bounds.unioned_bounds_2000 b
+            FROM {bounds_schema}.{bounds_table} b
             WHERE ST_Contains(b.geom, p.geom)
         );
         """
@@ -47,43 +51,42 @@ def load_overture_buildings(
     drop: bool = False,
 ) -> None:
     """ """
-    # check that the bounds table exists
-    if not tools.check_table_exists("eu", "bounds"):
-        raise IOError("The eu.bounds table does not exist; this needs to be created prior to proceeding.")
     logger.info("Loading overture buildings")
-    # create schema if necessary
     tools.prepare_schema("overture")
-    # setup load tracking
     load_key = "overture_buildings"
-    tools.init_tracking_table(load_key, "eu", "unioned_bounds_2000", "fid", "geom")
-    # get bounds
-    bounds_fids_geoms = tools.iter_boundaries("eu", "unioned_bounds_2000", "fid", "geom", wgs84=True)
+    bounds_schema = "eu"
+    bounds_table = "unioned_bounds_2000"
+    bounds_geom_col = "geom"
+    bounds_fid_col = "fid"
+    target_schema = "overture"
+    target_table = "overture_buildings"
+    bounds_fids_geoms = tools.iter_boundaries(bounds_schema, bounds_table, bounds_fid_col, bounds_geom_col, wgs84=True)
     # generate indices on input GPKG
     tools.create_gpkg_spatial_index(overture_buildings_path)
     # iter
     for bound_fid, bound_geom in tqdm(bounds_fids_geoms):
-        if drop is True:
-            tools.drop_content(
-                "overture",
-                "overture_buildings",
-                "eu",
-                "unioned_bounds_2000",
-                "geom",
-                "fid",
+        tools.process_func_with_bound_tracking(
+            bound_fid=bound_fid,
+            load_key=load_key,
+            core_function=process_extent_buildings,
+            func_args=[
                 bound_fid,
-            )
-            tools.tracking_state_reset_loaded(load_key, bound_fid)
-        loaded = tools.tracking_state_check_loaded(load_key, bound_fid)
-        if loaded is True:
-            continue
-        logger.info(f"Processing eu.unioned_bounds_2000 bounds fid {bound_fid}")
-        process_extent_buildings(
-            bound_fid,
-            bound_geom,
-            overture_buildings_path,
-            bin_path,
+                bound_geom,
+                bounds_schema,
+                bounds_table,
+                overture_buildings_path,
+                target_schema,
+                target_table,
+                bin_path,
+            ],
+            content_schema=target_schema,
+            content_tables=[target_table],
+            bounds_schema=bounds_schema,
+            bounds_table=bounds_table,
+            bounds_geom_col=bounds_geom_col,
+            bounds_fid_col=bounds_fid_col,
+            drop=drop,
         )
-        tools.tracking_state_set_loaded(load_key, bound_fid)
 
 
 if __name__ == "__main__":

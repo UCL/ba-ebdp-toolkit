@@ -13,11 +13,12 @@ from shapely import geometry
 from src import tools
 
 logger = tools.get_logger(__name__)
-engine = tools.get_sqlalchemy_engine()
 
 
 def extract_boundary_polys(src_schema_name: str, bounds_raster_table_name: str) -> None:
+    """ """
     # may need raster support to be enabled on DB
+    engine = tools.get_sqlalchemy_engine()
     # fetch eu high density clusters
     raster_result = tools.db_fetch(
         f"""

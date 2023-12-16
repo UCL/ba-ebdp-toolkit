@@ -9,7 +9,7 @@ import subprocess
 import time
 import warnings
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 import geopandas as gpd
 import networkx as nx
@@ -354,21 +354,25 @@ def check_table_exists(db_schema: str, db_table: str) -> bool:
 
 
 def init_tracking_table(
-    load_key: str, template_db_schema: str, template_db_table: str, fid_col: int | str, geom_col: str
+    load_key: str, template_bounds_schema: str, template_bounds_table: str, fid_col: int | str, geom_col: str
 ) -> None:
     """ """
-    logger.info(f"Creating loading extents tracking table if not found: loads.{load_key}.")
-    db_execute(
-        f"""
-        CREATE SCHEMA IF NOT EXISTS loads;
-        CREATE TABLE IF NOT EXISTS loads.{load_key}
-        AS SELECT
-            {fid_col} as fid,
-            False as loaded,
-            {geom_col} as geom
-        FROM {template_db_schema}.{template_db_table};
-        """
-    )
+    if not check_table_exists(template_bounds_schema, template_bounds_table):
+        logger.info(
+            f"Creating loading extents tracking table loads.{load_key} "
+            f"using bounds {template_bounds_schema}.{template_bounds_table} as template"
+        )
+        db_execute(
+            f"""
+            CREATE SCHEMA IF NOT EXISTS loads;
+            CREATE TABLE loads.{load_key}
+            AS SELECT
+                {fid_col} as fid,
+                False as loaded,
+                {geom_col} as geom
+            FROM {template_bounds_schema}.{template_bounds_table};
+            """
+        )
 
 
 def tracking_state_reset_loaded(load_key: str, bounds_fid: int | str) -> None:
@@ -441,6 +445,40 @@ def drop_content(
             );
             """
         )
+
+
+def process_func_with_bound_tracking(
+    bound_fid: int | str,
+    load_key: str,
+    core_function: Callable,
+    func_args: list,
+    content_schema: str,
+    content_tables: list[str],
+    bounds_schema: str,
+    bounds_table: str,
+    bounds_geom_col: str,
+    bounds_fid_col: str,
+    drop=False,
+):
+    """ """
+    if not check_table_exists(bounds_schema, bounds_table):
+        raise IOError(f"Cannot proceed because the {bounds_schema}.{bounds_table} table does not exist.")
+    init_tracking_table(load_key, bounds_schema, bounds_table, bounds_fid_col, bounds_geom_col)
+    if drop is True:
+        for content_table in content_tables:
+            logger.info(
+                f"Dropping content from {content_schema}.{content_table} "
+                f"where intersecting {bounds_schema}.{bounds_table} for bounds {bound_fid}"
+            )
+            drop_content(
+                content_schema, content_table, bounds_schema, bounds_table, bounds_geom_col, bounds_fid_col, bound_fid
+            )
+        tracking_state_reset_loaded(load_key, bound_fid)
+    loaded = tracking_state_check_loaded(load_key, bound_fid)
+    if not loaded:
+        logger.info(f"Loading {bounds_schema}.{bounds_table} bounds fid {bound_fid}")
+        core_function(*func_args)
+        tracking_state_set_loaded(load_key, bound_fid)
 
 
 def create_gpkg_spatial_index(gpkg_path: str | Path) -> None:

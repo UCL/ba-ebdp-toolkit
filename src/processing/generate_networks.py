@@ -2,29 +2,33 @@
 from __future__ import annotations
 
 import argparse
+from concurrent.futures import ProcessPoolExecutor
 
 import geopandas as gpd
 from cityseer.tools import graphs, io
 from geoalchemy2 import Geometry
-from shapely import geometry
 from tqdm import tqdm
 
 from src import tools
 
 logger = tools.get_logger(__name__)
 
-engine = tools.get_sqlalchemy_engine()
-
 
 def generate_clean_network(
     bounds_fid: int | str,
+    bounds_schema: str,
+    bounds_table: str,
+    target_schema: str,
+    target_nodes_table: str,
+    target_edges_table: str,
 ):
     """ """
+    engine = tools.get_sqlalchemy_engine()
     nodes_gdf = gpd.read_postgis(
         f"""
         WITH bounds AS (
             SELECT geom
-            FROM eu.unioned_bounds_10000
+            FROM {bounds_schema}.{bounds_table}
             WHERE fid = {bounds_fid}
         )
         SELECT DISTINCT n.fid, n.geom
@@ -43,7 +47,7 @@ def generate_clean_network(
         f"""
         WITH bounds AS (
             SELECT geom
-            FROM eu.unioned_bounds_10000
+            FROM {bounds_schema}.{bounds_table}
             WHERE fid = {bounds_fid}
         )
         SELECT DISTINCT e.fid, connectors, road_class, surface, level, e.geom
@@ -64,9 +68,7 @@ def generate_clean_network(
     crawl_dist = 12
     contains_buffer_dist = 50
     parallel_dist = 15
-    # cast to 3035
-    G = io.nx_epsg_conversion(multigraph, 4326, 3035)
-    G = graphs.nx_remove_filler_nodes(G)
+    G = graphs.nx_remove_filler_nodes(multigraph)
     G = graphs.nx_remove_dangling_nodes(G)
     G = graphs.nx_consolidate_nodes(G, buffer_dist=crawl_dist, crawl=True, contains_buffer_dist=contains_buffer_dist)
     G = graphs.nx_split_opposing_geoms(G, buffer_dist=parallel_dist, contains_buffer_dist=contains_buffer_dist)
@@ -77,7 +79,7 @@ def generate_clean_network(
     G = graphs.nx_consolidate_nodes(G, buffer_dist=parallel_dist, contains_buffer_dist=contains_buffer_dist)
     G = graphs.nx_remove_filler_nodes(G)
     G = graphs.nx_iron_edges(G)
-    nodes_gdf, edges_gdf, network_structure = io.network_structure_from_nx(G, crs=3035)
+    nodes_gdf, edges_gdf, _network_structure = io.network_structure_from_nx(G, crs=3035)
 
     def generate_vis_lines(node_row):
         return G.nodes[node_row.name]["line_geom"]
@@ -86,10 +88,10 @@ def generate_clean_network(
     nodes_gdf.rename(columns={"geom": "node_geom"}, inplace=True)
     nodes_gdf.set_geometry("node_geom", inplace=True)
     nodes_gdf.to_postgis(
-        "nodes_network",
+        target_nodes_table,
         engine,
         if_exists="append",
-        schema="overture",
+        schema=target_schema,
         index=True,
         index_label="fid",
         dtype={
@@ -97,12 +99,15 @@ def generate_clean_network(
             "line_geom": Geometry(geometry_type="LINESTRING", srid=3035),
         },
     )
-    edges_gdf.to_postgis("clean_network", engine, if_exists="append", schema="overture", index=True, index_label="fid")
+    edges_gdf.to_postgis(
+        target_edges_table, engine, if_exists="append", schema=target_schema, index=True, index_label="fid"
+    )
 
 
 def process_network(
     target_bounds_fids: list[int] | str,
     drop: bool = False,
+    parallel_workers: int = 2,
 ):
     """ """
     if not (
@@ -111,80 +116,95 @@ def process_network(
     ):
         raise IOError("The overture nodes and edges tables need to be created prior to proceeding.")
     logger.info("Preparing cleaned networks")
-    # setup load tracking
     load_key = "clean_network"
-    tools.init_tracking_table(load_key, "eu", "unioned_bounds_10000", "fid", "geom")
-    # process by boundary clusters to avoid duplication of elements
-    bounds_fids_geoms = tools.iter_boundaries("eu", "unioned_bounds_10000", "fid", "geom", wgs84=True)
+    bounds_schema = "eu"
+    bounds_table = "unioned_bounds_10000"
+    bounds_geom_col = "geom"
+    bounds_fid_col = "fid"
+    target_schema = "overture"
+    target_nodes_table = "network_nodes_clean"
+    target_edges_table = "network_edges_clean"
+    bounds_fids_geoms = tools.iter_boundaries(bounds_schema, bounds_table, bounds_fid_col, bounds_geom_col, wgs84=True)
+    # check fids
     bounds_fids = [big[0] for big in bounds_fids_geoms]
-    if isinstance(target_bounds_fids, str):
-        if target_bounds_fids == "all":
-            process_fids = bounds_fids
-        else:
-            raise ValueError('target_bounds_fids parameter must be a list of int else pass "all" to process all.')
-    elif isinstance(target_bounds_fids, list):
-        if set(target_bounds_fids).issubset(set(bounds_fids)):
-            process_fids = target_bounds_fids
-        else:
-            raise ValueError("target_bounds_fids must be a subset of ids found in eu.unioned_bounds_10000 table.")
+    if isinstance(target_bounds_fids, str) and target_bounds_fids == "all":
+        process_fids = bounds_fids
+    elif set(target_bounds_fids).issubset(set(bounds_fids)):
+        process_fids = target_bounds_fids
     else:
-        raise ValueError('target_bounds_fids parameter must be a list of int else pass "all" to process all.')
-    for bound_fid in tqdm(process_fids):
-        if drop is True:
-            tools.drop_content(
-                "overture",
-                "clean_network",
-                "eu",
-                "unioned_bounds_10000",
-                "geom",
-                "fid",
+        raise ValueError(
+            'target_bounds_fids must either be "all" to load all boundaries '
+            f"or should otherwise be a list with a subset of ids found in {bounds_schema}.{bounds_table} table."
+        )
+
+    def process_bound_fid(bound_fid):
+        tools.process_func_with_bound_tracking(
+            bound_fid=bound_fid,
+            load_key=load_key,
+            core_function=generate_clean_network,
+            func_args=[
                 bound_fid,
-            )
-            tools.tracking_state_reset_loaded(load_key, bound_fid)
-        loaded = tools.tracking_state_check_loaded(load_key, bound_fid)
-        if loaded is True:
-            continue
-        logger.info(f"Processing eu.unioned_bounds_10000 bounds fid {bound_fid}")
-        generate_clean_network(bound_fid)
+                bounds_schema,
+                bounds_table,
+                target_schema,
+                target_nodes_table,
+                target_edges_table,
+            ],
+            content_schema=target_schema,
+            content_tables=[target_nodes_table, target_edges_table],
+            bounds_schema=bounds_schema,
+            bounds_table=bounds_table,
+            bounds_geom_col=bounds_geom_col,
+            bounds_fid_col=bounds_fid_col,
+            drop=drop,
+        )
+
+    # process in parallel
+    with ProcessPoolExecutor(max_workers=parallel_workers) as executor:
+        list(tqdm(executor.map(process_bound_fid, process_fids), total=len(process_fids)))
 
 
 if __name__ == "__main__":
     """
     Examples are run from the project folder (the folder containing src)
-    python -m src.processing.generate_networks all
+    python -m src.processing.generate_networks all --parallel_workers 2
     """
+
+    def bounds_fid_type(value):
+        if value == "all":
+            return value
+        try:
+            return int(value)
+        except ValueError:
+            raise argparse.ArgumentTypeError(f"{value} is not a valid bounds_fid. It must be an integer or 'all'.")
+
     if False:
         parser = argparse.ArgumentParser(description="Convert raw Overture nodes and edges to network.")
         parser.add_argument(
             "bounds_fid",
-            type=str,
-            help="A bounds fid to load corresponding to input bounds table. Use 'all' to load all bounds.",
+            type=bounds_fid_type,
+            help=(
+                "A bounds fid to load corresponding to input bounds table. "
+                "Use 'all' to load all bounds or provide an integer."
+            ),
+        )
+        parser.add_argument(
+            "--parallel_workers",
+            type=int,
+            default=2,  # Set your desired default value here
+            help="The number of CPU cores to use for processing bounds in parallel. Defaults to 5.",
         )
         parser.add_argument("--drop", action="store_true", help="Whether to drop existing tables.")
         args = parser.parse_args()
-        bounds_fid = args.bounds_fid
-        if bounds_fid == "all":
-            bounds_fids = tools.db_fetch(
-                """
-                WITH ids AS (SELECT fid FROM eu.unioned_bounds_10000 ORDER BY fid ASC)
-                SELECT array_agg(fid) FROM ids
-                """
-            )[0][0]
-        else:
-            bounds_fids = [int(bounds_fid)]
         process_network(
-            bounds_fids,
+            args.bounds_fid,
             args.overwrite,
+            args.parallel_workers,
         )
     else:
         bounds_fids = [197]  # 197 - Rennes
-        # bounds_fids = tools.db_fetch(
-        #     f"""
-        # WITH ids AS (SELECT fid FROM eu.unioned_bounds_10000 ORDER BY fid ASC)
-        # SELECT array_agg(fid) FROM ids
-        # """
-        # )[0][0]
         process_network(
             bounds_fids,
             drop=False,
+            parallel_workers=7,
         )

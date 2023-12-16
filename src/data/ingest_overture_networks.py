@@ -11,35 +11,40 @@ from tqdm import tqdm
 from src import tools
 
 logger = tools.get_logger(__name__)
-engine = tools.get_sqlalchemy_engine()
 
 
 def process_extent_network(
-    bounds_fid: str,
+    bounds_fid: int | str,
     bounds_geom: geometry.Polygon,
+    bounds_schema: str,
+    bounds_table: str,
     overture_nodes_path: str | Path,
     overture_edges_path: str | Path,
+    target_schema: str,
+    target_nodes_table: str,
+    target_edges_table: str,
     bin_path: str | None = None,
 ):
     """ """
+    engine = tools.get_sqlalchemy_engine()
     # NODES
     nodes_gdf = tools.snip_overture_by_extents(overture_nodes_path, bounds_geom, "nodes", bin_path)
     nodes_gdf.set_index("fid", inplace=True)
     nodes_gdf.rename(columns={"geometry": "geom"}, inplace=True)
     nodes_gdf.set_geometry("geom", inplace=True)
     nodes_gdf.drop(columns=["connectors", "road", "version", "level"], inplace=True)
-    nodes_gdf["bounds_key"] = "unioned_bounds_10000"
+    nodes_gdf["bounds_key"] = bounds_table
     nodes_gdf["bounds_fid"] = bounds_fid
     nodes_gdf.to_crs(3035).to_postgis(
-        "overture_nodes", engine, if_exists="append", schema="overture", index=True, index_label="fid"
+        target_nodes_table, engine, if_exists="append", schema=target_schema, index=True, index_label="fid"
     )
     # cleanup edges
     tools.db_execute(
         f"""
-        DELETE FROM overture.overture_nodes n
+        DELETE FROM {target_schema}.{target_nodes_table} n
         WHERE bounds_fid = {bounds_fid} AND NOT EXISTS (
             SELECT 1 
-            FROM eu.unioned_bounds_10000 b
+            FROM {bounds_schema}.{bounds_table} b
             WHERE ST_Contains(b.geom, n.geom)
         );
                 """
@@ -77,18 +82,18 @@ def process_extent_network(
         return None
 
     edges_gdf["surface"] = edges_gdf["road"].apply(extract_surface)
-    edges_gdf["bounds_key"] = "unioned_bounds_10000"
+    edges_gdf["bounds_key"] = bounds_table
     edges_gdf["bounds_fid"] = bounds_fid
     edges_gdf.to_crs(3035).to_postgis(
-        "overture_edges", engine, if_exists="append", schema="eu", index=True, index_label="fid"
+        target_edges_table, engine, if_exists="append", schema=target_schema, index=True, index_label="fid"
     )
     # cleanup edges
     tools.db_execute(
         f"""
-        DELETE FROM overture.overture_edges e
+        DELETE FROM {target_schema}.{target_edges_table} e
         WHERE bounds_fid = {bounds_fid} AND NOT EXISTS (
             SELECT 1 
-            FROM eu.unioned_bounds_10000 b
+            FROM {bounds_schema}.{bounds_table} b
             WHERE ST_Contains(b.geom, e.geom)
         );
                 """
@@ -102,54 +107,46 @@ def load_overture_networks(
     drop: bool = False,
 ) -> None:
     """ """
-    # check that the bounds table exists
-    if not tools.check_table_exists("eu", "bounds"):
-        raise IOError("The eu.bounds table does not exist; this needs to be created prior to proceeding.")
     logger.info("Loading overture networks")
-    # create schema if necessary
     tools.prepare_schema("overture")
-    # setup load tracking
     load_key = "overture_networks"
-    tools.init_tracking_table(load_key, "eu", "unioned_bounds_10000", "fid", "geom")
-    # get bounds
-    bounds_fids_geoms = tools.iter_boundaries("eu", "unioned_bounds_10000", "fid", "geom", wgs84=True)
+    bounds_schema = "eu"
+    bounds_table = "unioned_bounds_10000"
+    bounds_geom_col = "geom"
+    bounds_fid_col = "fid"
+    target_schema = "overture"
+    target_nodes_table = "overture_nodes"
+    target_edges_table = "overture_edges"
+    bounds_fids_geoms = tools.iter_boundaries(bounds_schema, bounds_table, bounds_fid_col, bounds_geom_col, wgs84=True)
     # generate indices on input GPKG
     tools.create_gpkg_spatial_index(overture_nodes_path)
     tools.create_gpkg_spatial_index(overture_edges_path)
     # iter
     for bound_fid, bound_geom in tqdm(bounds_fids_geoms):
-        if drop is True:
-            tools.drop_content(
-                "overture",
-                "overture_nodes",
-                "eu",
-                "unioned_bounds_10000",
-                "geom",
-                "fid",
+        tools.process_func_with_bound_tracking(
+            bound_fid=bound_fid,
+            load_key=load_key,
+            core_function=process_extent_network,
+            func_args=[
                 bound_fid,
-            )
-            tools.drop_content(
-                "overture",
-                "overture_edges",
-                "eu",
-                "unioned_bounds_10000",
-                "geom",
-                "fid",
-                bound_fid,
-            )
-            tools.tracking_state_reset_loaded(load_key, bound_fid)
-        loaded = tools.tracking_state_check_loaded(load_key, bound_fid)
-        if loaded is True:
-            continue
-        logger.info(f"Processing eu.unioned_bounds_10000 bounds fid {bound_fid}")
-        process_extent_network(
-            bound_fid,
-            bound_geom,
-            overture_nodes_path,
-            overture_edges_path,
-            bin_path,
+                bound_geom,
+                bounds_schema,
+                bounds_table,
+                overture_nodes_path,
+                overture_edges_path,
+                target_schema,
+                target_nodes_table,
+                target_edges_table,
+                bin_path,
+            ],
+            content_schema=target_schema,
+            content_tables=[target_nodes_table, target_edges_table],
+            bounds_schema=bounds_schema,
+            bounds_table=bounds_table,
+            bounds_geom_col=bounds_geom_col,
+            bounds_fid_col=bounds_fid_col,
+            drop=drop,
         )
-        tools.tracking_state_set_loaded(load_key, bound_fid)
 
 
 if __name__ == "__main__":
