@@ -28,7 +28,7 @@ def process_extent_places(
     """ """
     engine = tools.get_sqlalchemy_engine()
     places_gdf = tools.snip_overture_by_extents(overture_places_path, bounds_geom, "places", bin_path)
-    places_gdf.set_index("fid", inplace=True)
+    places_gdf.set_index("id", inplace=True)
     places_gdf.rename(columns={"geometry": "geom"}, inplace=True)
     places_gdf.set_geometry("geom", inplace=True)
 

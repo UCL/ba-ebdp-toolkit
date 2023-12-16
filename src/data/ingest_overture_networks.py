@@ -29,7 +29,7 @@ def process_extent_network(
     engine = tools.get_sqlalchemy_engine()
     # NODES
     nodes_gdf = tools.snip_overture_by_extents(overture_nodes_path, bounds_geom, "nodes", bin_path)
-    nodes_gdf.set_index("fid", inplace=True)
+    nodes_gdf.set_index("id", inplace=True)
     nodes_gdf.rename(columns={"geometry": "geom"}, inplace=True)
     nodes_gdf.set_geometry("geom", inplace=True)
     nodes_gdf.drop(columns=["connectors", "road", "version", "level"], inplace=True)
@@ -51,7 +51,7 @@ def process_extent_network(
     )
     # EDGES
     edges_gdf = tools.snip_overture_by_extents(overture_edges_path, bounds_geom, "edges", bin_path)
-    edges_gdf.set_index("fid", inplace=True)
+    edges_gdf.set_index("id", inplace=True)
     edges_gdf.rename(columns={"geometry": "geom"}, inplace=True)
     edges_gdf.set_geometry("geom", inplace=True)
 

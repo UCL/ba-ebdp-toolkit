@@ -25,7 +25,7 @@ def process_extent_buildings(
     """ """
     engine = tools.get_sqlalchemy_engine()
     buildings_gdf = tools.snip_overture_by_extents(overture_buildings_path, bounds_geom, "buildings", bin_path)
-    buildings_gdf.set_index("fid", inplace=True)
+    buildings_gdf.set_index("id", inplace=True)
     buildings_gdf.rename(columns={"geometry": "geom"}, inplace=True)
     buildings_gdf.set_geometry("geom", inplace=True)
     buildings_gdf["bounds_key"] = bounds_table
@@ -39,7 +39,7 @@ def process_extent_buildings(
         WHERE bounds_fid = {bounds_fid} AND NOT EXISTS (
             SELECT 1 
             FROM {bounds_schema}.{bounds_table} b
-            WHERE ST_Contains(b.geom, p.geom)
+            WHERE ST_Contains(b.geom, bldgs.geom)
         );
         """
     )

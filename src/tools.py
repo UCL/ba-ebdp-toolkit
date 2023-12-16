@@ -330,7 +330,7 @@ def iter_boundaries(
 
 def prepare_schema(overture_schema_name: str):
     """ """
-    logger.info(f"Checking schema {overture_schema_name} if necessary.")
+    logger.info(f"Creating schema {overture_schema_name} if necessary.")
     db_execute(
         f"""
         CREATE SCHEMA IF NOT EXISTS {overture_schema_name};
@@ -357,7 +357,7 @@ def init_tracking_table(
     load_key: str, template_bounds_schema: str, template_bounds_table: str, fid_col: int | str, geom_col: str
 ) -> None:
     """ """
-    if not check_table_exists(template_bounds_schema, template_bounds_table):
+    if not check_table_exists("loads", load_key):
         logger.info(
             f"Creating loading extents tracking table loads.{load_key} "
             f"using bounds {template_bounds_schema}.{template_bounds_table} as template"
