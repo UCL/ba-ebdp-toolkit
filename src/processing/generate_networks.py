@@ -2,12 +2,13 @@
 from __future__ import annotations
 
 import argparse
-from concurrent.futures import ProcessPoolExecutor
+import concurrent.futures
+import os
+import traceback
 
 import geopandas as gpd
 from cityseer.tools import graphs, io
 from geoalchemy2 import Geometry
-from tqdm import tqdm
 
 from src import tools
 
@@ -81,12 +82,12 @@ def generate_clean_network(
     G = graphs.nx_iron_edges(G)
     nodes_gdf, edges_gdf, _network_structure = io.network_structure_from_nx(G, crs=3035)
 
+    G = graphs.nx_generate_vis_lines(G)
+
     def generate_vis_lines(node_row):
         return G.nodes[node_row.name]["line_geom"]
 
     nodes_gdf["edge_geom"] = nodes_gdf.apply(generate_vis_lines, axis=1)
-    nodes_gdf.rename(columns={"geom": "node_geom"}, inplace=True)
-    nodes_gdf.set_geometry("node_geom", inplace=True)
     nodes_gdf.to_postgis(
         target_nodes_table,
         engine,
@@ -95,8 +96,8 @@ def generate_clean_network(
         index=True,
         index_label="fid",
         dtype={
-            "point_geom": Geometry(geometry_type="POINT", srid=3035),
-            "line_geom": Geometry(geometry_type="LINESTRING", srid=3035),
+            "geom": Geometry(geometry_type="POINT", srid=3035),
+            "edge_geom": Geometry(geometry_type="MULTILINESTRING", srid=3035),
         },
     )
     edges_gdf.to_postgis(
@@ -136,32 +137,39 @@ def process_network(
             'target_bounds_fids must either be "all" to load all boundaries '
             f"or should otherwise be a list with a subset of ids found in {bounds_schema}.{bounds_table} table."
         )
+    # set to quiet mode
+    os.environ["CITYSEER_QUIET_MODE"] = "true"
 
-    def process_bound_fid(bound_fid):
-        tools.process_func_with_bound_tracking(
-            bound_fid=bound_fid,
-            load_key=load_key,
-            core_function=generate_clean_network,
-            func_args=[
+    with concurrent.futures.ProcessPoolExecutor(max_workers=parallel_workers) as executor:
+        futures = {}
+        for bound_fid in process_fids:
+            args = (
                 bound_fid,
+                load_key,
+                generate_clean_network,
+                [
+                    bound_fid,
+                    bounds_schema,
+                    bounds_table,
+                    target_schema,
+                    target_nodes_table,
+                    target_edges_table,
+                ],
+                target_schema,
+                [target_nodes_table, target_edges_table],
                 bounds_schema,
                 bounds_table,
-                target_schema,
-                target_nodes_table,
-                target_edges_table,
-            ],
-            content_schema=target_schema,
-            content_tables=[target_nodes_table, target_edges_table],
-            bounds_schema=bounds_schema,
-            bounds_table=bounds_table,
-            bounds_geom_col=bounds_geom_col,
-            bounds_fid_col=bounds_fid_col,
-            drop=drop,
-        )
-
-    # process in parallel
-    with ProcessPoolExecutor(max_workers=parallel_workers) as executor:
-        list(tqdm(executor.map(process_bound_fid, process_fids), total=len(process_fids)))
+                bounds_geom_col,
+                bounds_fid_col,
+                drop,
+            )
+            futures[executor.submit(tools.process_func_with_bound_tracking, *args)] = args
+        for future in concurrent.futures.as_completed(futures):
+            try:
+                future.result()
+            except Exception as exc:
+                logger.error(traceback.format_exc())
+                raise RuntimeError("An error occurred in the background task") from exc
 
 
 if __name__ == "__main__":
@@ -202,9 +210,9 @@ if __name__ == "__main__":
             args.parallel_workers,
         )
     else:
-        bounds_fids = [197]  # 197 - Rennes
+        bounds_fids = [436, 439]
         process_network(
             bounds_fids,
             drop=False,
-            parallel_workers=7,
+            parallel_workers=2,
         )

@@ -365,7 +365,7 @@ def init_tracking_table(
         db_execute(
             f"""
             CREATE SCHEMA IF NOT EXISTS loads;
-            CREATE TABLE loads.{load_key}
+            CREATE TABLE IF NOT EXISTS loads.{load_key}
             AS SELECT
                 {fid_col} as fid,
                 False as loaded,
@@ -433,7 +433,10 @@ def drop_content(
 ) -> None:
     """ """
     if check_table_exists(target_db_schema, target_db_table):
-        logger.warning(f"Dropping content from {target_db_schema}.{target_db_table} for bounds: {bounds_fid}")
+        logger.info(
+            f"Dropping content from {target_db_schema}.{target_db_table} "
+            f"where intersecting {bounds_schema}.{bounds_table} for bounds {bounds_fid}"
+        )
         db_execute(
             f"""
             DELETE FROM {target_db_schema}.{target_db_table} target
@@ -466,10 +469,6 @@ def process_func_with_bound_tracking(
     init_tracking_table(load_key, bounds_schema, bounds_table, bounds_fid_col, bounds_geom_col)
     if drop is True:
         for content_table in content_tables:
-            logger.info(
-                f"Dropping content from {content_schema}.{content_table} "
-                f"where intersecting {bounds_schema}.{bounds_table} for bounds {bound_fid}"
-            )
             drop_content(
                 content_schema, content_table, bounds_schema, bounds_table, bounds_geom_col, bounds_fid_col, bound_fid
             )
