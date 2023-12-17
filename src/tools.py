@@ -1,6 +1,7 @@
 """ """
 from __future__ import annotations
 
+import argparse
 import json
 import logging
 import os
@@ -16,6 +17,7 @@ import networkx as nx
 import pandas as pd
 import psycopg2
 import sqlalchemy
+from cityseer.tools import io
 from dotenv import load_dotenv
 from osgeo import ogr
 from shapely import geometry, ops, wkb
@@ -445,7 +447,7 @@ def drop_content(
         db_execute(
             f"""
             DELETE FROM {target_db_schema}.{target_db_table} target
-            WHERE NOT EXISTS (
+            WHERE EXISTS (
                 SELECT 1
                 FROM {bounds_schema}.{bounds_table} bounds
                 WHERE ST_Intersects(target.geom, bounds.{bounds_geom_col})
@@ -511,3 +513,66 @@ def create_gpkg_spatial_index(gpkg_path: str | Path) -> None:
 
         # Close the GeoPackage
         gpkg_ds = None
+
+
+def load_bounds_fid_network_from_db(engine: sqlalchemy.Engine, bounds_fid: int, buffer_col: str) -> nx.MultiGraph:
+    """ """
+    # load nodes
+    nodes_gdf: gpd.GeoDataFrame = gpd.read_postgis(  # type: ignore
+        f"""
+        SELECT
+            c.fid,
+            c.ns_node_idx,
+            c.x,
+            c.y,
+            ST_Contains(b.geom, c.geom) as live,
+            c.weight,
+            c.geom,
+            c.edge_geom
+        FROM overture.network_nodes_clean c, eu.bounds b
+            WHERE b.fid = {bounds_fid}
+                AND ST_Contains(b.{buffer_col}, c.geom)
+        """,
+        engine,
+        index_col="fid",
+        geom_col="geom",
+    )
+    # load edges
+    edges_gdf: gpd.GeoDataFrame = gpd.read_postgis(  # type: ignore
+        f"""
+        SELECT
+            c.fid,
+            c.ns_edge_idx,
+            c.start_ns_node_idx,
+            c.end_ns_node_idx,
+            c.edge_idx,
+            c.nx_start_node_key,
+            c.nx_end_node_key,
+            c.length,
+            c.angle_sum,
+            c.imp_factor,
+            c.in_bearing,
+            c.out_bearing,
+            c.total_bearing,
+            c.geom
+        FROM overture.network_edges_clean c, eu.bounds b
+            WHERE b.fid = {bounds_fid}
+                AND ST_Contains(b.{buffer_col}, c.geom)
+        """,
+        engine,
+        index_col="fid",
+        geom_col="geom",
+    )
+    logger.info("Generating networkx graph")
+    multigraph = io.nx_from_cityseer_geopandas(nodes_gdf, edges_gdf)
+
+    return multigraph
+
+
+def bounds_fid_type(value):
+    if value == "all":
+        return value
+    try:
+        return [int(value)]
+    except ValueError:
+        raise argparse.ArgumentTypeError(f"{value} is not a valid bounds_fid. It must be an integer or 'all'.")

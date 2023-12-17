@@ -125,7 +125,7 @@ def process_network(
     target_schema = "overture"
     target_nodes_table = "network_nodes_clean"
     target_edges_table = "network_edges_clean"
-    bounds_fids_geoms = tools.iter_boundaries(bounds_schema, bounds_table, bounds_fid_col, bounds_geom_col, wgs84=True)
+    bounds_fids_geoms = tools.iter_boundaries(bounds_schema, bounds_table, bounds_fid_col, bounds_geom_col, wgs84=False)
     # check fids
     bounds_fids = [big[0] for big in bounds_fids_geoms]
     if isinstance(target_bounds_fids, str) and target_bounds_fids == "all":
@@ -135,7 +135,7 @@ def process_network(
     else:
         raise ValueError(
             'target_bounds_fids must either be "all" to load all boundaries '
-            f"or should otherwise be a list with a subset of ids found in {bounds_schema}.{bounds_table} table."
+            f"or should correspond to an fid found in {bounds_schema}.{bounds_table} table."
         )
     # set to quiet mode
     os.environ["CITYSEER_QUIET_MODE"] = "true"
@@ -178,23 +178,12 @@ if __name__ == "__main__":
     python -m src.processing.generate_networks all --parallel_workers 7
     """
 
-    def bounds_fid_type(value):
-        if value == "all":
-            return value
-        try:
-            return int(value)
-        except ValueError:
-            raise argparse.ArgumentTypeError(f"{value} is not a valid bounds_fid. It must be an integer or 'all'.")
-
     if True:
         parser = argparse.ArgumentParser(description="Convert raw Overture nodes and edges to network.")
         parser.add_argument(
             "bounds_fid",
-            type=bounds_fid_type,
-            help=(
-                "A bounds fid to load corresponding to input bounds table. "
-                "Use 'all' to load all bounds or provide an integer."
-            ),
+            type=tools.bounds_fid_type,
+            help=("A bounds fid as int to load a specific bounds. Use 'all' to load all bounds."),
         )
         parser.add_argument(
             "--parallel_workers",
