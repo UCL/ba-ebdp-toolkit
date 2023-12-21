@@ -140,36 +140,40 @@ def process_network(
     # set to quiet mode
     os.environ["CITYSEER_QUIET_MODE"] = "true"
 
+    futures = {}
     with concurrent.futures.ProcessPoolExecutor(max_workers=parallel_workers) as executor:
-        futures = {}
-        for bound_fid in process_fids:
-            args = (
-                bound_fid,
-                load_key,
-                generate_clean_network,
-                [
+        try:
+            for bound_fid in process_fids:
+                args = (
                     bound_fid,
+                    load_key,
+                    generate_clean_network,
+                    [
+                        bound_fid,
+                        bounds_schema,
+                        bounds_table,
+                        target_schema,
+                        target_nodes_table,
+                        target_edges_table,
+                    ],
+                    target_schema,
+                    [target_nodes_table, target_edges_table],
                     bounds_schema,
                     bounds_table,
-                    target_schema,
-                    target_nodes_table,
-                    target_edges_table,
-                ],
-                target_schema,
-                [target_nodes_table, target_edges_table],
-                bounds_schema,
-                bounds_table,
-                bounds_geom_col,
-                bounds_fid_col,
-                drop,
-            )
-            futures[executor.submit(tools.process_func_with_bound_tracking, *args)] = args
-        for future in concurrent.futures.as_completed(futures):
-            try:
-                future.result()
-            except Exception as exc:
-                logger.error(traceback.format_exc())
-                raise RuntimeError("An error occurred in the background task") from exc
+                    bounds_geom_col,
+                    bounds_fid_col,
+                    drop,
+                )
+                futures[executor.submit(tools.process_func_with_bound_tracking, *args)] = args
+            for future in concurrent.futures.as_completed(futures):
+                try:
+                    future.result()
+                except Exception as exc:
+                    logger.error(traceback.format_exc())
+                    raise RuntimeError("An error occurred in the background task") from exc
+        except KeyboardInterrupt:
+            executor.shutdown(wait=True, cancel_futures=True)
+            raise
 
 
 if __name__ == "__main__":
