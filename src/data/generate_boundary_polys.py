@@ -29,7 +29,7 @@ def extract_boundary_polys(src_schema_name: str, bounds_raster_table_name: str) 
     # fetch UK boundary to filter out
     uk_boundary = ox.geocode_to_gdf("United Kingdom").to_crs("3035").iloc[0].geometry
     # and EU boundary to filter out remote islands
-    eu_boundary = geometry.box(2576047, 1389198, 5883853, 4772012)
+    eu_boundary = geometry.box(1431795, 1241520, 6637004, 4772012)
     # extract polygons from raster
     polys: list[geometry.Polygon] = []
     with MemoryFile(raster_result) as memfile:
