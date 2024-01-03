@@ -31,3 +31,8 @@ The Overture Maps data source is licensed [Community Data License Agreement – 
 - iter bounds 2000 and load places data (save to overture) and compute accessibilities (save to metrics)
 - iter bounds 2000 and compute densities and green space metrics
 - iter bounds and compute building and blocks metrics
+
+## OSM Selection
+
+- [https://handbook.geospatial.psu.edu/sites/default/files/capstone/Stratman_Capstone_Final_Paper_20150503.pdf]()
+- [https://www.nature.com/articles/s41467-023-39698-6]()
