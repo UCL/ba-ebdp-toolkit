@@ -92,8 +92,8 @@ extent_geom = extent_multi_geom.geoms[0].simplify(50)
 # minimal cleaning
 barc_netw_osm = io.osm_graph_from_poly(
     poly_geom=extent_geom,
-    poly_epsg_code=3035,
-    to_epsg_code=3035,
+    poly_crs_code=3035,
+    to_crs_code=3035,
     simplify=False,
 )
 barc_netw_osm = graphs.nx_remove_dangling_nodes(barc_netw_osm, despine=15)
@@ -117,8 +117,8 @@ nodes_gdf_osm = networks.node_centrality_simplest(
 # automatic cleaning
 barc_netw_osm_cleaned = io.osm_graph_from_poly(
     poly_geom=extent_geom,
-    poly_epsg_code=3035,
-    to_epsg_code=3035,
+    poly_crs_code=3035,
+    to_crs_code=3035,
     crawl_consolidate_dist=15,
     parallel_consolidate_dist=20,
     contains_buffer_dist=100,
