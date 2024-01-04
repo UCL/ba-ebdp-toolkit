@@ -127,7 +127,7 @@ def process_green(
         # prepare kernel
         cell_dist = np.ceil(dist / pixel_size).astype(int)
         kernel_size = 2 * cell_dist + 1
-        kernel = np.ones((kernel_size, kernel_size), dtype=np.uint8)
+        kernel = np.zeros((kernel_size, kernel_size), dtype=np.uint8)
         y, x = np.ogrid[-cell_dist : cell_dist + 1, -cell_dist : cell_dist + 1]
         mask = x**2 + y**2 <= cell_dist**2
         kernel[mask] = 1
@@ -159,12 +159,15 @@ def process_green(
                             crs=nodes_gdf.crs,  # type: ignore
                             transform=transform,
                         ) as conv_rast:
-                            count_ones = scipy.ndimage.convolve(burned, kernel, mode="constant", cval=0)
+                            count_ones = scipy.ndimage.convolve(
+                                burned, kernel, mode="constant", cval=0, output=np.uint32
+                            )
                             conv_rast.write_band(1, count_ones)
                             logger.info("Sampling")
                             for idx, row in nodes_gdf.iterrows():  # type: ignore
                                 for val in conv_rast.sample([(row.geom.x, row.geom.y)]):
-                                    nodes_gdf.at[idx, f"{data_key}_{dist}"] = val[0]  # type: ignore
+                                    # reset area to pixel size then take km2
+                                    nodes_gdf.at[idx, f"{data_key}_{dist}"] = (val[0] * pixel_size**2) / 1000**2
     # keep only live
     nodes_gdf = nodes_gdf.loc[nodes_gdf.live]  # type: ignore
     nodes_gdf.to_postgis(  # type: ignore
