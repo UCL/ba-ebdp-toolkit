@@ -527,8 +527,7 @@ def load_bounds_fid_network_from_db(engine: sqlalchemy.Engine, bounds_fid: int, 
             c.y,
             ST_Contains(b.geom, c.geom) as live,
             c.weight,
-            c.geom,
-            c.edge_geom
+            c.geom
         FROM overture.network_nodes_clean c, eu.bounds b
             WHERE b.fid = {bounds_fid}
                 AND ST_Contains(b.{buffer_col}, c.geom)
