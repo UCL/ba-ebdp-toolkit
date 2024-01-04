@@ -139,7 +139,7 @@ if __name__ == "__main__":
     python -m src.processing.metrics_landuses all
     """
 
-    if False:
+    if True:
         parser = argparse.ArgumentParser(description="Compute landuse metrics.")
         parser.add_argument(
             "bounds_fid",
