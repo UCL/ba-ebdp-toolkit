@@ -30,7 +30,14 @@ from __future__ import annotations
 import argparse
 
 import geopandas as gpd
+import numpy as np
+import rasterio
+import scipy.ndimage
 from cityseer.tools import io
+from rasterio.features import rasterize
+from rasterio.io import MemoryFile
+from rasterio.transform import from_origin
+from shapely import geometry
 from tqdm import tqdm
 
 from src import tools
@@ -68,21 +75,9 @@ def process_green(
         geom_col="geom",
     )
     # track bounds
-    nodes_gdf.loc[:, "bounds_key"] = "bounds"
-    nodes_gdf.loc[:, "bounds_fid"] = bounds_fid
+    nodes_gdf.loc[:, "bounds_key"] = "bounds"  # type: ignore
+    nodes_gdf.loc[:, "bounds_fid"] = bounds_fid  # type: ignore
     # green spaces
-    trees_gdf = gpd.read_postgis(
-        f"""
-        SELECT t.fid, t.geom
-        FROM eu.trees t, eu.{bounds_table} b
-        WHERE b.{bounds_fid_col} = {bounds_fid}
-            AND ST_Contains(b.{bounds_geom_col}, t.geom)
-        """,
-        engine,
-        index_col="fid",
-        geom_col="geom",
-    )
-    # trees
     green_gdf = gpd.read_postgis(
         f"""
         SELECT bl.fid, bl.geom
@@ -108,23 +103,73 @@ def process_green(
         index_col="fid",
         geom_col="geom",
     )
-    logger.info("Creating unary trees geom")
-    tree_cover_unary = trees_gdf.geometry.unary_union.simplify(5)
-    logger.info("Creating unary green spaces geom")
-    green_space_unary = green_gdf.geometry.unary_union.simplify(5)
+    # trees
+    trees_gdf = gpd.read_postgis(
+        f"""
+        SELECT t.fid, t.geom
+        FROM eu.trees t, eu.{bounds_table} b
+        WHERE b.{bounds_fid_col} = {bounds_fid}
+            AND ST_Contains(b.{bounds_geom_col}, t.geom)
+        """,
+        engine,
+        index_col="fid",
+        geom_col="geom",
+    )
+    logger.info("Preparing transform")
+    # buffer bounds
+    bounds = geometry.box(*nodes_gdf.total_bounds).buffer(2000).bounds  # type: ignore
+    pixel_size = 10
+    num_cols = int((bounds[2] - bounds[0]) / pixel_size)
+    num_rows = int((bounds[3] - bounds[1]) / pixel_size)
+    transform = from_origin(bounds[0], bounds[3], pixel_size, pixel_size)
+    # create trees raster
     for dist in [100, 500]:
-        logger.info(f"Processing distance: {dist}")
-        # Buffer the nodes
-        nodes_gdf[f"geom_{dist}"] = nodes_gdf["geom"].apply(lambda x: x.buffer(dist))
-        for node_idx, node_row in tqdm(nodes_gdf.iterrows(), total=len(nodes_gdf)):
-            # intersect with the unary geoms
-            nodes_gdf.loc[node_idx, f"tree_cover_{dist}"] = node_row[f"geom_{dist}"].intersection(tree_cover_unary).area
-            nodes_gdf.loc[node_idx, f"green_space_{dist}"] = (
-                node_row[f"geom_{dist}"].intersection(green_space_unary).area
-            )
-        nodes_gdf.drop(columns=[f"geom_{dist}"], inplace=True)
+        # prepare kernel
+        cell_dist = np.ceil(dist / pixel_size).astype(int)
+        kernel_size = 2 * cell_dist + 1
+        kernel = np.zeros((kernel_size, kernel_size), dtype=np.uint8)
+        y, x = np.ogrid[-cell_dist : cell_dist + 1, -cell_dist : cell_dist + 1]
+        mask = x**2 + y**2 <= cell_dist**2
+        kernel[mask] = 1
+        # iter GDFs
+        for data_key, data_gdf in [("trees", trees_gdf), ("green", green_gdf)]:
+            logger.info(f"Processing {data_key} at distance {dist}")
+            logger.info(f"Burning shapes")
+            with MemoryFile() as memfile:
+                with memfile.open(
+                    driver="GTiff",
+                    height=num_rows,
+                    width=num_cols,
+                    count=1,
+                    dtype=rasterio.uint8,
+                    crs=nodes_gdf.crs,  # type: ignore
+                    transform=transform,
+                ) as burn_rast:
+                    shapes = ((geom, 1) for geom in data_gdf.geometry)
+                    burned = rasterize(shapes=shapes, out_shape=(num_rows, num_cols), transform=transform)
+                    burn_rast.write_band(1, burned)
+                    logger.info("Convolving distances")
+                    with MemoryFile() as memfile2:
+                        with memfile2.open(
+                            driver="GTiff",
+                            height=num_rows,
+                            width=num_cols,
+                            count=1,
+                            dtype=rasterio.uint32,
+                            crs=nodes_gdf.crs,  # type: ignore
+                            transform=transform,
+                        ) as conv_rast:
+                            count_ones = scipy.ndimage.convolve(
+                                burned, kernel, mode="constant", cval=0, output=np.uint32
+                            )
+                            conv_rast.write_band(1, count_ones)
+                            logger.info("Sampling")
+                            for idx, row in nodes_gdf.iterrows():  # type: ignore
+                                for val in conv_rast.sample([(row.geom.x, row.geom.y)]):
+                                    # reset area to pixel size then take km2
+                                    nodes_gdf.at[idx, f"{data_key}_{dist}"] = (val[0] * pixel_size**2) / 1000**2
     # keep only live
-    nodes_gdf = nodes_gdf.loc[nodes_gdf.live]
+    nodes_gdf = nodes_gdf.loc[nodes_gdf.live]  # type: ignore
     nodes_gdf.to_postgis(  # type: ignore
         target_table,
         engine,
@@ -196,7 +241,7 @@ if __name__ == "__main__":
     python -m src.processing.metrics_green all
     """
 
-    if False:
+    if True:
         parser = argparse.ArgumentParser(description="Compute green space and tree metrics.")
         parser.add_argument(
             "bounds_fid",
