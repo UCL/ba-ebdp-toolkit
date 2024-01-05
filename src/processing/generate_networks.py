@@ -8,7 +8,6 @@ import traceback
 
 import geopandas as gpd
 from cityseer.tools import graphs, io
-from geoalchemy2 import Geometry
 
 from src import tools
 
@@ -69,25 +68,21 @@ def generate_clean_network(
     crawl_dist = 12
     contains_buffer_dist = 50
     parallel_dist = 15
-    G = graphs.nx_remove_filler_nodes(multigraph)
-    G = graphs.nx_remove_dangling_nodes(G)
-    G = graphs.nx_consolidate_nodes(G, buffer_dist=crawl_dist, crawl=True, contains_buffer_dist=contains_buffer_dist)
-    G = graphs.nx_split_opposing_geoms(G, buffer_dist=parallel_dist, contains_buffer_dist=contains_buffer_dist)
-    G = graphs.nx_consolidate_nodes(G, buffer_dist=parallel_dist, contains_buffer_dist=contains_buffer_dist)
-    G = graphs.nx_remove_filler_nodes(G)
-    G = graphs.nx_iron_edges(G)
-    G = graphs.nx_split_opposing_geoms(G, buffer_dist=parallel_dist, contains_buffer_dist=contains_buffer_dist)
-    G = graphs.nx_consolidate_nodes(G, buffer_dist=parallel_dist, contains_buffer_dist=contains_buffer_dist)
-    G = graphs.nx_remove_filler_nodes(G)
-    G = graphs.nx_iron_edges(G)
-    nodes_gdf, edges_gdf, _network_structure = io.network_structure_from_nx(G, crs=3035)
-
-    G = graphs.nx_generate_vis_lines(G)
-
-    def generate_vis_lines(node_row):
-        return G.nodes[node_row.name]["line_geom"]
-
-    nodes_gdf["edge_geom"] = nodes_gdf.apply(generate_vis_lines, axis=1)
+    graph = graphs.nx_remove_filler_nodes(multigraph)
+    graph = graphs.nx_remove_dangling_nodes(graph)
+    graph = graphs.nx_consolidate_nodes(
+        graph, buffer_dist=crawl_dist, crawl=True, contains_buffer_dist=contains_buffer_dist
+    )
+    graph = graphs.nx_split_opposing_geoms(graph, buffer_dist=parallel_dist, contains_buffer_dist=contains_buffer_dist)
+    graph = graphs.nx_consolidate_nodes(graph, buffer_dist=parallel_dist, contains_buffer_dist=contains_buffer_dist)
+    graph = graphs.nx_remove_filler_nodes(graph)
+    graph = graphs.nx_iron_edges(graph)
+    graph = graphs.nx_split_opposing_geoms(graph, buffer_dist=parallel_dist, contains_buffer_dist=contains_buffer_dist)
+    graph = graphs.nx_consolidate_nodes(graph, buffer_dist=parallel_dist, contains_buffer_dist=contains_buffer_dist)
+    graph = graphs.nx_remove_filler_nodes(graph)
+    graph = graphs.nx_iron_edges(graph)
+    G_dual = graphs.nx_to_dual(graph)
+    nodes_gdf, edges_gdf, _network_structure = io.network_structure_from_nx(G_dual, crs=3035)
     nodes_gdf.to_postgis(
         target_nodes_table,
         engine,
@@ -95,10 +90,6 @@ def generate_clean_network(
         schema=target_schema,
         index=True,
         index_label="fid",
-        dtype={
-            "geom": Geometry(geometry_type="POINT", srid=3035),
-            "edge_geom": Geometry(geometry_type="MULTILINESTRING", srid=3035),
-        },
     )
     edges_gdf.to_postgis(
         target_edges_table, engine, if_exists="append", schema=target_schema, index=True, index_label="fid"
@@ -179,7 +170,7 @@ def process_network(
 if __name__ == "__main__":
     """
     Examples are run from the project folder (the folder containing src)
-    python -m src.processing.generate_networks all --parallel_workers 7
+    python -m src.processing.generate_networks all --parallel_workers 6
     """
 
     if True:
