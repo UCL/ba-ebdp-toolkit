@@ -8,6 +8,7 @@ import traceback
 
 import geopandas as gpd
 from cityseer.tools import graphs, io
+from geoalchemy2 import Geometry
 
 from src import tools
 
@@ -82,16 +83,30 @@ def generate_clean_network(
     graph = graphs.nx_remove_filler_nodes(graph)
     graph = graphs.nx_iron_edges(graph)
     G_dual = graphs.nx_to_dual(graph)
-    nodes_gdf, edges_gdf, _network_structure = io.network_structure_from_nx(G_dual, crs=3035)
-    nodes_gdf.to_postgis(
+    dual_nodes_gdf, dual_edges_gdf, _network_structure = io.network_structure_from_nx(G_dual, crs=3035)
+
+    def attach_primal_edges(node_row):
+        edge = graph.get_edge_data(
+            node_row["primal_edge_node_a"], node_row["primal_edge_node_b"], node_row["primal_edge_idx"]
+        )
+        return edge["geom"]
+
+    # set primal geoms for vis
+    dual_nodes_gdf["edge_geom"] = dual_nodes_gdf.apply(attach_primal_edges, axis=1)
+    # write
+    dual_nodes_gdf.to_postgis(
         target_nodes_table,
         engine,
         if_exists="append",
         schema=target_schema,
         index=True,
         index_label="fid",
+        dtype={
+            "geom": Geometry(geometry_type="POINT", srid=3035),
+            "edge_geom": Geometry(geometry_type="LINESTRING", srid=3035),
+        },
     )
-    edges_gdf.to_postgis(
+    dual_edges_gdf.to_postgis(
         target_edges_table, engine, if_exists="append", schema=target_schema, index=True, index_label="fid"
     )
 
@@ -194,7 +209,7 @@ if __name__ == "__main__":
             args.parallel_workers,
         )
     else:
-        bounds_fids = [78]
+        bounds_fids = [249]
         process_network(
             bounds_fids,
             drop=False,
