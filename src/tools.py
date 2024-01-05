@@ -474,14 +474,14 @@ def process_func_with_bound_tracking(
     if not check_table_exists(bounds_schema, bounds_table):
         raise IOError(f"Cannot proceed because the {bounds_schema}.{bounds_table} table does not exist.")
     init_tracking_table(load_key, bounds_schema, bounds_table, bounds_fid_col, bounds_geom_col)
-    if drop is True:
+    loaded = tracking_state_check_loaded(load_key, bound_fid)
+    if drop is True or not loaded:
+        # clear out even if drop is not True so that partially loaded content is cleared
         for content_table in content_tables:
             drop_content(
                 content_schema, content_table, bounds_schema, bounds_table, bounds_geom_col, bounds_fid_col, bound_fid
             )
         tracking_state_reset_loaded(load_key, bound_fid)
-    loaded = tracking_state_check_loaded(load_key, bound_fid)
-    if not loaded:
         logger.info(f"Loading {bounds_schema}.{bounds_table} bounds fid {bound_fid}")
         core_function(*func_args)
         tracking_state_set_loaded(load_key, bound_fid)
