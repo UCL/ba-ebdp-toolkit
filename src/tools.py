@@ -5,6 +5,7 @@ import argparse
 import json
 import logging
 import os
+import random
 import shutil
 import subprocess
 import time
@@ -365,10 +366,6 @@ def init_tracking_table(
 ) -> None:
     """ """
     if not check_table_exists("loads", load_key):
-        logger.info(
-            f"Creating loading extents tracking table loads.{load_key} "
-            f"using bounds {template_bounds_schema}.{template_bounds_table} as template"
-        )
         db_execute(
             f"""
             CREATE SCHEMA IF NOT EXISTS loads;
@@ -379,6 +376,10 @@ def init_tracking_table(
                 {geom_col} as geom
             FROM {template_bounds_schema}.{template_bounds_table};
             """
+        )
+        logger.info(
+            f"Created loading extents tracking table loads.{load_key} "
+            f"using bounds {template_bounds_schema}.{template_bounds_table} as template"
         )
 
 
@@ -446,13 +447,10 @@ def drop_content(
         )
         db_execute(
             f"""
-            DELETE FROM {target_db_schema}.{target_db_table} target
-            WHERE EXISTS (
-                SELECT 1
-                FROM {bounds_schema}.{bounds_table} bounds
+            DELETE FROM {target_db_schema}.{target_db_table} AS target
+                USING {bounds_schema}.{bounds_table} AS bounds
                 WHERE ST_Intersects(target.geom, bounds.{bounds_geom_col})
-                    AND bounds.{bounds_fid_col} = {bounds_fid}
-            );
+                    AND bounds.{bounds_fid_col} = {bounds_fid};
             """
         )
 
@@ -471,9 +469,14 @@ def process_func_with_bound_tracking(
     drop=False,
 ):
     """ """
+    # random sleep to prevent races / locks when running in multiprocessing
+    time.sleep(random.uniform(0.5, 1.0))
+    # check if bounds table exists
     if not check_table_exists(bounds_schema, bounds_table):
         raise IOError(f"Cannot proceed because the {bounds_schema}.{bounds_table} table does not exist.")
+    # check that tracking table is initiated
     init_tracking_table(load_key, bounds_schema, bounds_table, bounds_fid_col, bounds_geom_col)
+    # check if loaded
     loaded = tracking_state_check_loaded(load_key, bound_fid)
     if drop is True or not loaded:
         # clear out even if drop is not True so that partially loaded content is cleared
