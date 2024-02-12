@@ -95,18 +95,6 @@ python -m src.data.load_urban_atlas "./temp/urban atlas"
 python -m src.data.load_urban_atlas_trees "./temp/urban atlas trees"
 ```
 
-## Building Heights
-
-[Digital Height Model](https://land.copernicus.eu/local/urban-atlas/building-height-2012) (~ 1GB raster).
-
-> NOTE: This workflow assumes running the model for the entirety of the EU. If running a smaller extent, then only the necessary files need to be downloaded and can be uploaded using a similar process to the Population Density example.
-
-- Run the `load_bldg_hts_raster.py` script to upload the building heights data. Provide the path to the input directory with the zipped data files. Use the optional argument `--bin_path` to provide a path to the `bin` directory for your `postgres` installation. The raster will be loaded to the `bldg_hts` table in the `eu` schema.
-
-```bash
-python -m src.data.load_bldg_hts_raster "./temp/Digital height Model EU" --bin_path /Applications/Postgres.app/Contents/Versions/15/bin/
-```
-
 ## Downloading Overture data
 
 The workflow for ingesting Overture data entails a bulk-download for the extent of the EU using DuckDB. To proceed with a bulk data download, run the `download_overture_bbox.py` script from the project folder (the folder containing `src`). This will concurrently download the Overture places, nodes, edges, and buildings datasets. The script requires an output directory, a file prefix, and a bounding box within which data will be retrieved. Not all parquet data types map nicely to GPKG, so those with lists, maps, or other complex data types are converted to JSON for storage as strings in GPKG fields.
@@ -154,9 +142,45 @@ Subsequent steps make use of a cleaned network representation. Run the `generate
 python -m src.processing.generate_networks all --parallel_workers 2
 ```
 
+## Metrics
+
+Once the datasets are uploaded, boundaries extracted, and networks prepared, it is possible to start computing the metrics.
+
+Centrality:
+
+`python -m src.processing.metrics_centrality all`
+
+Green space and trees:
+
+`python -m src.processing.metrics_green all`
+
+Landuses:
+
+`python -m src.processing.metrics_landuses all`
+
+Population:
+
+`python -m src.processing.metrics_population all`
+
 ## Pending
 
-- Automate building heights from raster
+### Buildings and blocks
+
+Extract building and block characteristics.
+
+### Building Heights
+
+[Digital Height Model](https://land.copernicus.eu/local/urban-atlas/building-height-2012) (~ 1GB raster).
+
+> NOTE: This workflow assumes running the model for the entirety of the EU. If running a smaller extent, then only the necessary files need to be downloaded and can be uploaded using a similar process to the Population Density example.
+
+- Run the `load_bldg_hts_raster.py` script to upload the building heights data. Provide the path to the input directory with the zipped data files. Use the optional argument `--bin_path` to provide a path to the `bin` directory for your `postgres` installation. The raster will be loaded to the `bldg_hts` table in the `eu` schema.
+
+```bash
+python -m src.data.load_bldg_hts_raster "./temp/Digital height Model EU" --bin_path /Applications/Postgres.app/Contents/Versions/15/bin/
+```
+
+Possible SQL strategy:
 
 ```sql
 -- uses overture buildings table directly
