@@ -27,9 +27,6 @@ The Overture Maps data source is licensed [Community Data License Agreement – 
 
 ## TODO
 
-- iter bounds 10000 and build networks (save to overture) and compute centralities (save to metrics)
-- iter bounds 2000 and load places data (save to overture) and compute accessibilities (save to metrics)
-- iter bounds 2000 and compute densities and green space metrics
 - iter bounds and compute building and blocks metrics
 
 ## OSM Selection
