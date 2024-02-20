@@ -77,20 +77,21 @@ def process_morphology(
         geom_col="geom",
     )
     # block metrics
-    blocks_gdf["area"] = momepy.Area(blocks_gdf).series
-    blocks_gdf["perimeter"] = momepy.Perimeter(blocks_gdf).series
-    blocks_gdf["compactness"] = momepy.CircularCompactness(blocks_gdf, "area").series
-    blocks_gdf["orientation"] = momepy.Orientation(blocks_gdf).series
+    blocks_gdf.index = blocks_gdf.index.astype(str)
+    blocks_gdf["block_area"] = momepy.Area(blocks_gdf).series
+    blocks_gdf["block_perimeter"] = momepy.Perimeter(blocks_gdf).series
+    blocks_gdf["block_compactness"] = momepy.CircularCompactness(blocks_gdf, "block_area").series
+    blocks_gdf["block_orientation"] = momepy.Orientation(blocks_gdf).series
     # spatial join
     merged_gdf = gpd.sjoin(bldgs_gdf, blocks_gdf, how="left", predicate="within", lsuffix="bldg", rsuffix="bl")
     blocks_gdf["index_bl"] = blocks_gdf.index.values
-    blocks_gdf["covered_ratio"] = momepy.AreaRatio(
-        blocks_gdf, merged_gdf, "area", "area_bldg", left_unique_id="index_bl", right_unique_id="index_bl"
+    blocks_gdf["block_covered_ratio"] = momepy.AreaRatio(
+        blocks_gdf, merged_gdf, "block_area", "area", left_unique_id="index_bl", right_unique_id="index_bl"
     ).series
     # calculate
     blocks_gdf["centroid"] = blocks_gdf.geometry.centroid
     blocks_gdf.set_geometry("centroid", inplace=True)
-    for col_key in ["area", "perimeter", "compactness", "orientation", "covered_ratio"]:
+    for col_key in ["block_area", "block_perimeter", "block_compactness", "block_orientation", "block_covered_ratio"]:
         nodes_gdf, blocks_gdf = layers.compute_stats(
             data_gdf=blocks_gdf,
             stats_column_label=col_key,
@@ -176,7 +177,7 @@ if __name__ == "__main__":
     python -m src.processing.metrics_morphology all
     """
 
-    if False:
+    if True:
         parser = argparse.ArgumentParser(description="Compute building and block morphology metrics.")
         parser.add_argument(
             "bounds_fid",
