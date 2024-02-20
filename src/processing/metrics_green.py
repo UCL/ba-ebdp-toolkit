@@ -33,7 +33,6 @@ import geopandas as gpd
 import numpy as np
 import rasterio
 import scipy.ndimage
-from cityseer.tools import io
 from rasterio.features import rasterize
 from rasterio.io import MemoryFile
 from rasterio.transform import from_origin
