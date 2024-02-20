@@ -162,11 +162,11 @@ Population:
 
 `python -m src.processing.metrics_population all`
 
+Building and block morphologies:
+
+`python -m src.processing.metrics_morphology all`
+
 ## Pending
-
-### Buildings and blocks
-
-Extract building and block characteristics.
 
 ### Building Heights
 
