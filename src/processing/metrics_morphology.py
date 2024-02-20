@@ -5,9 +5,9 @@ from __future__ import annotations
 import argparse
 
 import geopandas as gpd
-from cityseer.metrics import networks
+import momepy
+from cityseer.metrics import layers
 from cityseer.tools import io
-from geoalchemy2 import Geometry
 from tqdm import tqdm
 
 from src import tools
@@ -31,17 +31,7 @@ def process_morphology(
     # track bounds
     nodes_gdf.loc[:, "bounds_key"] = "bounds"
     nodes_gdf.loc[:, "bounds_fid"] = bounds_fid
-    blocks_gdf = gpd.read_postgis(
-        f"""
-        SELECT bl.fid, bl.geom
-        FROM eu.blocks bl, eu.{bounds_table} b
-        WHERE b.{bounds_fid_col} = {bounds_fid}
-            AND ST_Contains(b.{bounds_geom_col}, bl.geom);
-        """,
-        engine,
-        index_col="fid",
-        geom_col="geom",
-    )
+    # buildings
     bldgs_gdf = gpd.read_postgis(
         f"""
         SELECT bldgs.fid, bldgs.geom
@@ -53,9 +43,66 @@ def process_morphology(
         index_col="fid",
         geom_col="geom",
     )
-    # block metrics
     # bldg metrics
-    # hybrid metrics?
+    bldgs_gdf["area"] = momepy.Area(bldgs_gdf).series
+    bldgs_gdf["perimeter"] = momepy.Perimeter(bldgs_gdf).series
+    bldgs_gdf["compactness"] = momepy.CircularCompactness(bldgs_gdf, "area").series
+    bldgs_gdf["orientation"] = momepy.Orientation(bldgs_gdf).series
+    # calculate
+    bldgs_gdf["centroid"] = bldgs_gdf.geometry.centroid
+    bldgs_gdf.set_geometry("centroid", inplace=True)
+    for col_key in ["area", "perimeter", "compactness", "orientation"]:
+        nodes_gdf, bldgs_gdf = layers.compute_stats(
+            data_gdf=bldgs_gdf,
+            stats_column_label=col_key,
+            nodes_gdf=nodes_gdf,
+            network_structure=network_structure,
+            distances=[100, 500, 1500],
+        )
+        trim_columns = []
+        for column_name in nodes_gdf.columns:
+            if col_key in column_name and not column_name.startswith(f"cc_metric_{col_key}_mean_wt"):
+                trim_columns.append(column_name)
+        nodes_gdf.drop(columns=trim_columns, inplace=True)
+    # blocks
+    blocks_gdf = gpd.read_postgis(
+        f"""
+        SELECT bl.fid, bl.geom
+        FROM eu.blocks bl, eu.{bounds_table} b
+        WHERE b.{bounds_fid_col} = {bounds_fid}
+            AND ST_Contains(b.{bounds_geom_col}, bl.geom);
+        """,
+        engine,
+        index_col="fid",
+        geom_col="geom",
+    )
+    # block metrics
+    blocks_gdf["area"] = momepy.Area(blocks_gdf).series
+    blocks_gdf["perimeter"] = momepy.Perimeter(blocks_gdf).series
+    blocks_gdf["compactness"] = momepy.CircularCompactness(blocks_gdf, "area").series
+    blocks_gdf["orientation"] = momepy.Orientation(blocks_gdf).series
+    # spatial join
+    merged_gdf = gpd.sjoin(bldgs_gdf, blocks_gdf, how="left", predicate="within", lsuffix="bldg", rsuffix="bl")
+    blocks_gdf["index_bl"] = blocks_gdf.index.values
+    blocks_gdf["covered_ratio"] = momepy.AreaRatio(
+        blocks_gdf, merged_gdf, "area", "area_bldg", left_unique_id="index_bl", right_unique_id="index_bl"
+    ).series
+    # calculate
+    blocks_gdf["centroid"] = blocks_gdf.geometry.centroid
+    blocks_gdf.set_geometry("centroid", inplace=True)
+    for col_key in ["area", "perimeter", "compactness", "orientation", "covered_ratio"]:
+        nodes_gdf, blocks_gdf = layers.compute_stats(
+            data_gdf=blocks_gdf,
+            stats_column_label=col_key,
+            nodes_gdf=nodes_gdf,
+            network_structure=network_structure,
+            distances=[100, 500, 1500],
+        )
+        trim_columns = []
+        for column_name in nodes_gdf.columns:
+            if col_key in column_name and not column_name.startswith(f"cc_metric_{col_key}_mean_wt"):
+                trim_columns.append(column_name)
+        nodes_gdf.drop(columns=trim_columns, inplace=True)
     # keep only live
     nodes_gdf = nodes_gdf.loc[nodes_gdf.live]
     nodes_gdf.to_postgis(  # type: ignore
