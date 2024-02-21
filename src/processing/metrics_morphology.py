@@ -6,6 +6,7 @@ import argparse
 
 import geopandas as gpd
 import momepy
+import numpy as np
 from cityseer.metrics import layers
 from cityseer.tools import io
 from tqdm import tqdm
@@ -43,11 +44,21 @@ def process_morphology(
         index_col="fid",
         geom_col="geom",
     )
-    # bldg metrics
-    bldgs_gdf["area"] = momepy.Area(bldgs_gdf).series
-    bldgs_gdf["perimeter"] = momepy.Perimeter(bldgs_gdf).series
-    bldgs_gdf["compactness"] = momepy.CircularCompactness(bldgs_gdf, "area").series
-    bldgs_gdf["orientation"] = momepy.Orientation(bldgs_gdf).series
+    if bldgs_gdf.empty is True:
+        logger.warning(f"No buildings data found for city {bounds_fid}")
+        # placeholders
+        for col_key in ["area", "perimeter", "compactness", "orientation"]:
+            bldgs_gdf[col_key] = np.nan
+    else:
+        # explode
+        bldgs_gdf = bldgs_gdf.explode(index_parts=False)
+        bldgs_gdf.reset_index(drop=True, inplace=True)
+        bldgs_gdf.index = bldgs_gdf.index.astype(str)
+        # bldg metrics
+        bldgs_gdf["area"] = momepy.Area(bldgs_gdf).series
+        bldgs_gdf["perimeter"] = momepy.Perimeter(bldgs_gdf).series
+        bldgs_gdf["compactness"] = momepy.CircularCompactness(bldgs_gdf, "area").series
+        bldgs_gdf["orientation"] = momepy.Orientation(bldgs_gdf).series
     # calculate
     bldgs_gdf["centroid"] = bldgs_gdf.geometry.centroid
     bldgs_gdf.set_geometry("centroid", inplace=True)
@@ -76,18 +87,30 @@ def process_morphology(
         index_col="fid",
         geom_col="geom",
     )
-    # block metrics
-    blocks_gdf.index = blocks_gdf.index.astype(str)
-    blocks_gdf["block_area"] = momepy.Area(blocks_gdf).series
-    blocks_gdf["block_perimeter"] = momepy.Perimeter(blocks_gdf).series
-    blocks_gdf["block_compactness"] = momepy.CircularCompactness(blocks_gdf, "block_area").series
-    blocks_gdf["block_orientation"] = momepy.Orientation(blocks_gdf).series
-    # spatial join
-    merged_gdf = gpd.sjoin(bldgs_gdf, blocks_gdf, how="left", predicate="within", lsuffix="bldg", rsuffix="bl")
-    blocks_gdf["index_bl"] = blocks_gdf.index.values
-    blocks_gdf["block_covered_ratio"] = momepy.AreaRatio(
-        blocks_gdf, merged_gdf, "block_area", "area", left_unique_id="index_bl", right_unique_id="index_bl"
-    ).series
+    if blocks_gdf.empty is True or bldgs_gdf.empty is True:
+        logger.warning(f"No blocks or buildings data found for city {bounds_fid}")
+        # placeholders
+        for col_key in [
+            "block_area",
+            "block_perimeter",
+            "block_compactness",
+            "block_orientation",
+            "block_covered_ratio",
+        ]:
+            blocks_gdf[col_key] = np.nan
+    else:
+        # block metrics
+        blocks_gdf.index = blocks_gdf.index.astype(str)
+        blocks_gdf["block_area"] = momepy.Area(blocks_gdf).series
+        blocks_gdf["block_perimeter"] = momepy.Perimeter(blocks_gdf).series
+        blocks_gdf["block_compactness"] = momepy.CircularCompactness(blocks_gdf, "block_area").series
+        blocks_gdf["block_orientation"] = momepy.Orientation(blocks_gdf).series
+        # spatial join
+        merged_gdf = gpd.sjoin(bldgs_gdf, blocks_gdf, how="left", predicate="within", lsuffix="bldg", rsuffix="bl")
+        blocks_gdf["index_bl"] = blocks_gdf.index.values
+        blocks_gdf["block_covered_ratio"] = momepy.AreaRatio(
+            blocks_gdf, merged_gdf, "block_area", "area", left_unique_id="index_bl", right_unique_id="index_bl"
+        ).series
     # calculate
     blocks_gdf["centroid"] = blocks_gdf.geometry.centroid
     blocks_gdf.set_geometry("centroid", inplace=True)
@@ -176,7 +199,6 @@ if __name__ == "__main__":
     Examples are run from the project folder (the folder containing src)
     python -m src.processing.metrics_morphology all
     """
-
     if True:
         parser = argparse.ArgumentParser(description="Compute building and block morphology metrics.")
         parser.add_argument(
@@ -191,7 +213,7 @@ if __name__ == "__main__":
             drop=args.drop,
         )
     else:
-        bounds_fids = [59]
+        bounds_fids = [15]
         compute_morphology_metrics(
             bounds_fids,
             drop=True,
