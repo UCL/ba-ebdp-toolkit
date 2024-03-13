@@ -27,7 +27,6 @@ from tqdm import tqdm
 
 warnings.simplefilter(action="ignore", category=pd.errors.PerformanceWarning)
 
-
 def get_logger(name: str, log_level: int = logging.INFO) -> logging.Logger:
     logging.basicConfig(level=log_level)
     return logging.getLogger(name)

@@ -56,6 +56,8 @@ dependencies = [
     "scipy>=1.11.3",
     "utm>=0.7.0",
     "gdal>=3.8.1",
+    "seaborn>=0.13.2",
+    "black[jupyter]>=24.2.0",
 ]
 [build-system]
 requires = ["pdm-backend"]
