@@ -70,7 +70,6 @@ python -m src.data.generate_boundary_polys eu hdens_clusters
 ## Census
 
 [census](https://ec.europa.eu/eurostat/web/population-demography/population-housing-censuses/information-data)
-[census hub](https://ec.europa.eu/CensusHub2/query.do?step=selectHyperCube&qhc=false)
 
 - The 2021 census adopts the 1km2 grid, but results are so far only released for population counts.
 - Other data will be released end March 2024.
