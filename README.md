@@ -25,10 +25,6 @@ The Overture Maps data source is licensed [Community Data License Agreement – 
 - If using a static IP please notify the UCL team, who will then add your IP address to the whitelisted domains. You will then be able to connect to the DB using a specified username and password.
 - If you do not have access to a static IP address then you need to connect with the GCP Cloud SQL Proxy. Instructions for installation of the utility are available [here](https://cloud.google.com/sql/docs/postgres/sql-proxy). Please notify the UCL team who will walk you through the steps.
 
-## TODO
-
-- iter bounds and compute building and blocks metrics
-
 ## OSM Selection
 
 - [https://handbook.geospatial.psu.edu/sites/default/files/capstone/Stratman_Capstone_Final_Paper_20150503.pdf]()
