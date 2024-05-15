@@ -55,9 +55,9 @@ dependencies = [
     "fiona>=1.9.5",
     "scipy>=1.11.3",
     "utm>=0.7.0",
-    "gdal>=3.8.1",
     "seaborn>=0.13.2",
     "black[jupyter]>=24.2.0",
+    "gdal==3.8.5",
 ]
 [build-system]
 requires = ["pdm-backend"]
@@ -142,8 +142,8 @@ log_cli_level = "INFO"
 testpaths = ["tests"]
 addopts = ""
 
-[tool.pdm]
-allow_prereleases = false
+[tool.pdm.resolution]
+allow-prereleases = false
 
 [tool.pdm.dev-dependencies]
 dev = [

@@ -47,4 +47,4 @@ def prepare_takeoff_tables(bounds_fid: int):
 if __name__ == "__main__":
     """ """
     # prepare_takeoff_tables(168)
-    prepare_takeoff_tables(691)
+    prepare_takeoff_tables(27)
