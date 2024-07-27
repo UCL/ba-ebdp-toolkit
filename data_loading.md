@@ -72,7 +72,7 @@ python -m src.data.generate_boundary_polys eu hdens_clusters
 [census](https://ec.europa.eu/eurostat/web/population-demography/population-housing-censuses/information-data)
 
 - The 2021 census adopts the 1km2 grid, but results are so far only released for population counts.
-- Other data will be released end March 2024.
+- Other data is meant to have been released in March 2024.
 
 ## Urban Atlas
 
@@ -96,22 +96,23 @@ python -m src.data.load_urban_atlas_trees "./temp/urban atlas trees"
 
 ## Downloading Overture data
 
-The workflow for ingesting Overture data entails a bulk-download for the extent of the EU using DuckDB. To proceed with a bulk data download, run the `download_overture_bbox.py` script from the project folder (the folder containing `src`). This will concurrently download the Overture places, nodes, edges, and buildings datasets. The script requires an output directory, a file prefix, and a bounding box within which data will be retrieved. Not all parquet data types map nicely to GPKG, so those with lists, maps, or other complex data types are converted to JSON for storage as strings in GPKG fields.
-
-For example, for loading the EU:
+Overture Maps can now be downloaded with the [`overturemaps-py`](https://github.com/OvertureMaps/overturemaps-py) utility.
 
 ```bash
-python -m src.data.download_overture_bbox ./temp eu -12.4214 33.2267 45.5351 71.1354
+# activate local venv if not already active
+# source ./.venv/bin/activate
+overturemaps download --bbox=-12.4214,33.2267,45.5351,71.1354 -f geoparquet --type=place -o temp/eu-places.parquet
+overturemaps download --bbox=-12.4214,33.2267,45.5351,71.1354 -f geoparquet --type=connector -o temp/eu-connectors.parquet
+overturemaps download --bbox=-12.4214,33.2267,45.5351,71.1354 -f geoparquet --type=segment -o temp/eu-segments.parquet
+overturemaps download --bbox=-12.4214,33.2267,45.5351,71.1354 -f geoparquet --type=building -o temp/eu-buildings.parquet
 ```
-
-The bulk download is currently a slow process (the downloads can take several days). This is because DuckDB's functionality is presently limited and the Overture data source uses parquet instead of geoparquet, which would otherwise afford more efficient spatial queries. These are likely to be improved in due course.
 
 The download sizes for the EU are:
 
-- Places dataset: 5.58GB
-- Nodes dataset: 19.27GB
-- Edges dataset: 50.82GB
-- Buildings dataset: 81.04GB
+- Places dataset: 2.5GB
+- Connectors dataset: 8GB
+- Segments dataset: 22GB
+- Buildings dataset: 58GB
 
 ## Ingesting Overture data
 
