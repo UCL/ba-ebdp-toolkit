@@ -27,6 +27,7 @@ from tqdm import tqdm
 
 warnings.simplefilter(action="ignore", category=pd.errors.PerformanceWarning)
 
+
 def get_logger(name: str, log_level: int = logging.INFO) -> logging.Logger:
     logging.basicConfig(level=log_level)
     return logging.getLogger(name)
@@ -256,56 +257,17 @@ def generate_overture_schema() -> dict[str, list[str]]:
 def snip_overture_by_extents(
     path: str | Path,
     bounds_buff: geometry.Polygon,
-    path_key: str,
-    bin_path: str | None = None,
 ) -> gpd.GeoDataFrame:
     """ """
     # prepare paths
     input_path = Path(path)
-    if not str(input_path).endswith(".gpkg"):
-        raise ValueError(f'Expected file with extension of ".gpkg": {input_path}')
+    if not str(input_path).endswith("gpkg") and not str(input_path).endswith("parquet"):
+        raise ValueError(f'Expected file path to end with "gpkg" or "parquet": {input_path}')
     if not input_path.exists():
         raise ValueError(f"Input path does not exist: {input_path}")
-    staging_dir = input_path.parent / f"temp_snip_{path_key}"
-    if staging_dir.exists():
-        shutil.rmtree(staging_dir)
-    os.makedirs(staging_dir)
-    snip_path = staging_dir / f"snip_{input_path.name}"
-    # snip
-    attempts = 3
-    while attempts > 0:
-        attempts -= 1
-        try:
-            subprocess.run(
-                [  # type: ignore
-                    "ogr2ogr" if bin_path is None else str(Path(bin_path) / "ogr2ogr"),
-                    "-f",
-                    "GPKG",
-                    "-spat",
-                    str(bounds_buff.bounds[0]),
-                    str(bounds_buff.bounds[1]),
-                    str(bounds_buff.bounds[2]),
-                    str(bounds_buff.bounds[3]),
-                    str(snip_path),
-                    str(input_path),
-                ],
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                text=True,
-                check=True,
-            )
-            break
-        except subprocess.CalledProcessError as err:
-            if attempts > 0:
-                logger.error(f"Encountered error with ogr2ogr, reattempting after 1s; {attempts} attempts remaining.")
-                time.sleep(1)  # try sleeping to give time for database locks to release
-            else:
-                logger.error(err.stdout)
-                logger.error(err.stderr)
-                raise err
-    gdf = gpd.read_file(snip_path)
-    # cleanup temp directory
-    shutil.rmtree(staging_dir)
+    ## PENDING issue https://github.com/OvertureMaps/overturemaps-py/issues/40
+    # gdf = gpd.read_parquet(str(input_path.resolve()), bbox=bounds_buff.bounds)
+    gdf = gpd.read(str(input_path.resolve()))
 
     return gdf
 

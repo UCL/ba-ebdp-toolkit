@@ -96,7 +96,7 @@ python -m src.data.load_urban_atlas_trees "./temp/urban atlas trees"
 
 ## Downloading Overture data
 
-Overture Maps can now be downloaded with the [`overturemaps-py`](https://github.com/OvertureMaps/overturemaps-py) utility.
+Overture Maps can now be downloaded with the [`overturemaps-py`](https://github.com/OvertureMaps/overturemaps-py) utility. This can take several hours, so you may wish to let this run overnight.
 
 ```bash
 # activate local venv if not already active
@@ -119,19 +119,19 @@ The download sizes for the EU are:
 Upload overture network data (nodes and edges) using the `ingest_networks.py` script. Pass the `--drop` flag to drop and therefore replace existing tables. The loading scripts will otherwise track which boundary extents are loaded and will resume if interrupted. The tables will be uploaded to the `overture` schema.
 
 ```bash
-python -m src.data.ingest_overture_networks 'temp/eu_nodes.gpkg' 'temp/eu_edges.gpkg'
+python -m src.data.ingest_overture_networks 'temp/eu-connectors.parquet' 'temp/eu-segments.parquet'
 ```
 
 Places is similar:
 
 ```bash
-python -m src.data.ingest_overture_places 'temp/eu_places.gpkg'
+python -m src.data.ingest_overture_places 'temp/eu-places.parquet'
 ```
 
 As is buildings:
 
 ```bash
-python -m src.data.ingest_overture_buildings 'temp/eu_buildings.gpkg'
+python -m src.data.ingest_overture_buildings 'temp/eu-buildings.parquet'
 ```
 
 ## Network preparation and cleaning

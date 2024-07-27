@@ -1,4 +1,5 @@
 """ """
+
 from __future__ import annotations
 
 import argparse
@@ -23,12 +24,11 @@ def process_extent_network(
     target_schema: str,
     target_nodes_table: str,
     target_edges_table: str,
-    bin_path: str | None = None,
 ):
     """ """
     engine = tools.get_sqlalchemy_engine()
     # NODES
-    nodes_gdf = tools.snip_overture_by_extents(overture_nodes_path, bounds_geom, "nodes", bin_path)
+    nodes_gdf = tools.snip_overture_by_extents(overture_nodes_path, bounds_geom)
     nodes_gdf.set_index("id", inplace=True)
     nodes_gdf.rename(columns={"geometry": "geom"}, inplace=True)
     nodes_gdf.set_geometry("geom", inplace=True)
@@ -50,7 +50,7 @@ def process_extent_network(
                 """
     )
     # EDGES
-    edges_gdf = tools.snip_overture_by_extents(overture_edges_path, bounds_geom, "edges", bin_path)
+    edges_gdf = tools.snip_overture_by_extents(overture_edges_path, bounds_geom)
     edges_gdf.set_index("id", inplace=True)
     edges_gdf.rename(columns={"geometry": "geom"}, inplace=True)
     edges_gdf.set_geometry("geom", inplace=True)
@@ -103,7 +103,6 @@ def process_extent_network(
 def load_overture_networks(
     overture_nodes_path: str | Path,
     overture_edges_path: str | Path,
-    bin_path: str | None = None,
     drop: bool = False,
 ) -> None:
     """ """
@@ -137,7 +136,6 @@ def load_overture_networks(
                 target_schema,
                 target_nodes_table,
                 target_edges_table,
-                bin_path,
             ],
             content_schema=target_schema,
             content_tables=[target_nodes_table, target_edges_table],
@@ -154,7 +152,7 @@ if __name__ == "__main__":
     Examples are run from the project folder (the folder containing src)
     python -m src.data.ingest_overture_networks 'temp/eu_nodes.gpkg' 'temp/eu_edges.gpkg'
     """
-    if True:
+    if False:
         parser = argparse.ArgumentParser(description="Load overture nodes and edges GPKG to DB.")
         parser.add_argument(
             "overture_nodes_path",
@@ -166,18 +164,16 @@ if __name__ == "__main__":
             type=str,
             help="Path to overture edges dataset.",
         )
-        parser.add_argument("--bin_path", type=str, default=None, help="Optional bin path for ogr2ogr.")
         parser.add_argument("--drop", action="store_true", help="Whether to drop existing tables.")
         args = parser.parse_args()
         load_overture_networks(
             args.overture_nodes_path,
             args.overture_edges_path,
-            bin_path=args.bin_path,
             drop=args.drop,
         )
     else:
         load_overture_networks(
-            "temp/eu_nodes.gpkg",
-            "temp/eu_edges.gpkg",
+            "temp/eu-connectors.parquet",
+            "temp/eu-segments.parquet",
             drop=False,
         )
