@@ -64,7 +64,7 @@ def load_urban_blocks(data_dir_path: str) -> None:
                         full_gpkg_path = str((Path(walk_dir_path) / file_name).resolve())
                         # use fiona for quick bbox check
                         with fiona.open(full_gpkg_path) as src:
-                            if not geometry.box(*src.bounds).intersects(bounds_geom):
+                            if not geometry.box(*src.bounds).intersects(bounds_geom):  # type: ignore
                                 continue
                         gdf = gpd.read_file(full_gpkg_path)
                         # discard rows if in filtered classes

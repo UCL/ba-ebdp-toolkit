@@ -62,8 +62,8 @@ def load_overture_buildings(
     target_schema = "overture"
     target_table = "overture_buildings"
     bounds_fids_geoms = tools.iter_boundaries(bounds_schema, bounds_table, bounds_fid_col, bounds_geom_col, wgs84=True)
-    # generate indices on input GPKG
-    tools.create_gpkg_spatial_index(overture_buildings_path)
+    # generate indices on input files
+    tools.create_file_spatial_index(overture_buildings_path)
     # iter
     for bound_fid, bound_geom in tqdm(bounds_fids_geoms):
         tools.process_func_with_bound_tracking(
@@ -93,7 +93,7 @@ def load_overture_buildings(
 if __name__ == "__main__":
     """
     Examples are run from the project folder (the folder containing src)
-    python -m src.data.ingest_overture_buildings 'temp/eu_buildings.gpkg'
+    python -m src.data.ingest_overture_buildings 'temp/eu_buildings.geoparquet'
     """
     if True:
         parser = argparse.ArgumentParser(description="Load overture buildings geoparquet file to DB.")
@@ -112,6 +112,6 @@ if __name__ == "__main__":
         )
     else:
         load_overture_buildings(
-            "temp/eu_buildings.gpkg",
+            "temp/eu_buildings.geoparquet",
             drop=False,
         )

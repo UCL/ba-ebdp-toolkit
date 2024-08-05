@@ -266,7 +266,7 @@ def snip_overture_by_extents(
     # prepare paths
     input_path = Path(path)
     if not str(input_path).endswith("gpkg") and not str(input_path).endswith("parquet"):
-        raise ValueError(f'Expected file path to end with "gpkg" or "parquet": {input_path}')
+        raise ValueError(f'Expected file path to end with "gpkg" or "geo/parquet": {input_path}')
     if not input_path.exists():
         raise ValueError(f"Input path does not exist: {input_path}")
     # TODO: pending issue https://github.com/OvertureMaps/overturemaps-py/issues/40
@@ -457,20 +457,20 @@ def process_func_with_bound_tracking(
         tracking_state_set_loaded(load_key, bound_fid)
 
 
-def create_gpkg_spatial_index(gpkg_path: str | Path) -> None:
+def create_file_spatial_index(file_path: str | Path) -> None:
     """ """
-    gpkg_ds = ogr.Open(gpkg_path, update=True)
-    if gpkg_ds:
-        num_layers = gpkg_ds.GetLayerCount()
+    file_ds = ogr.Open(file_path, update=True)
+    if file_ds:
+        num_layers = file_ds.GetLayerCount()
         for i in range(num_layers):
-            layer = gpkg_ds.GetLayerByIndex(i)
+            layer = file_ds.GetLayerByIndex(i)
             layer_name = layer.GetName()
             geom_col_name = layer.GetGeometryColumn()
             if not geom_col_name:
                 continue
             try:
                 subprocess.run(
-                    ["ogrinfo", "-sql", f"SELECT CreateSpatialIndex('{layer_name}', '{geom_col_name}')", gpkg_path],
+                    ["ogrinfo", "-sql", f"SELECT CreateSpatialIndex('{layer_name}', '{geom_col_name}')", file_path],
                     check=True,  # Check for command success
                     stdout=subprocess.PIPE,
                     stderr=subprocess.PIPE,
@@ -482,7 +482,7 @@ def create_gpkg_spatial_index(gpkg_path: str | Path) -> None:
                 raise err
 
         # Close the GeoPackage
-        gpkg_ds = None
+        file_ds = None
 
 
 def load_bounds_fid_network_from_db(engine: sqlalchemy.Engine, bounds_fid: int, buffer_col: str) -> nx.MultiGraph:

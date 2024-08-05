@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import argparse
-import json
 from pathlib import Path
 
 from shapely import geometry
@@ -32,10 +31,9 @@ def process_extent_network(
     nodes_gdf.set_index("id", inplace=True)
     nodes_gdf.rename(columns={"geometry": "geom"}, inplace=True)
     nodes_gdf.set_geometry("geom", inplace=True)
-    nodes_gdf.drop(columns=["connectors", "road", "version", "level"], inplace=True)
     nodes_gdf["bounds_key"] = bounds_table
     nodes_gdf["bounds_fid"] = bounds_fid
-    nodes_gdf.to_crs(3035).to_postgis(
+    nodes_gdf.to_crs(3035).to_postgis(  # type: ignore
         target_nodes_table, engine, if_exists="append", schema=target_schema, index=True, index_label="fid"
     )
     # cleanup edges
@@ -54,37 +52,9 @@ def process_extent_network(
     edges_gdf.set_index("id", inplace=True)
     edges_gdf.rename(columns={"geometry": "geom"}, inplace=True)
     edges_gdf.set_geometry("geom", inplace=True)
-
-    # extract connectors as list of str
-    def extract_connectors(json_string):
-        connectors = json.loads(json_string)
-        connectors = [c for c in connectors]
-        return json.dumps(connectors)
-
-    edges_gdf = edges_gdf.rename(columns={"connectors": "_connectors"})
-    edges_gdf["connectors"] = edges_gdf["_connectors"].apply(extract_connectors)
-    edges_gdf = edges_gdf.drop(columns=["_connectors"])
-
-    # extract class
-    def extract_class(json_string):
-        road_info = json.loads(json_string)
-        if "class" in road_info:
-            return road_info["class"]
-        return None
-
-    edges_gdf["road_class"] = edges_gdf["road"].apply(extract_class)
-
-    # extract surface
-    def extract_surface(json_string):
-        road_info = json.loads(json_string)
-        if "surface" in road_info:
-            return road_info["surface"]
-        return None
-
-    edges_gdf["surface"] = edges_gdf["road"].apply(extract_surface)
     edges_gdf["bounds_key"] = bounds_table
     edges_gdf["bounds_fid"] = bounds_fid
-    edges_gdf.to_crs(3035).to_postgis(
+    edges_gdf.to_crs(3035).to_postgis(  # type: ignore
         target_edges_table, engine, if_exists="append", schema=target_schema, index=True, index_label="fid"
     )
     # cleanup edges
@@ -108,18 +78,18 @@ def load_overture_networks(
     """ """
     logger.info("Loading overture networks")
     tools.prepare_schema("overture")
-    load_key = "overture_networks"
+    load_key = "overture_network"
     bounds_schema = "eu"
     bounds_table = "unioned_bounds_10000"
     bounds_geom_col = "geom"
     bounds_fid_col = "fid"
     target_schema = "overture"
-    target_nodes_table = "overture_nodes"
-    target_edges_table = "overture_edges"
+    target_nodes_table = "overture_node"
+    target_edges_table = "overture_edge"
     bounds_fids_geoms = tools.iter_boundaries(bounds_schema, bounds_table, bounds_fid_col, bounds_geom_col, wgs84=True)
-    # generate indices on input GPKG
-    tools.create_gpkg_spatial_index(overture_nodes_path)
-    tools.create_gpkg_spatial_index(overture_edges_path)
+    # generate indices on input files
+    tools.create_file_spatial_index(overture_nodes_path)
+    tools.create_file_spatial_index(overture_edges_path)
     # iter
     for bound_fid, bound_geom in tqdm(bounds_fids_geoms):
         tools.process_func_with_bound_tracking(
@@ -150,7 +120,7 @@ def load_overture_networks(
 if __name__ == "__main__":
     """
     Examples are run from the project folder (the folder containing src)
-    python -m src.data.ingest_overture_networks 'temp/eu_nodes.gpkg' 'temp/eu_edges.gpkg'
+    python -m src.data.ingest_overture_networks 'temp/eu_nodes.geoparquet' 'temp/eu_edges.geoparquet'
     """
     if True:
         parser = argparse.ArgumentParser(description="Load overture nodes and edges geoparquet file to DB.")
@@ -173,7 +143,7 @@ if __name__ == "__main__":
         )
     else:
         load_overture_networks(
-            "temp/eu-connectors.parquet",
-            "temp/eu-segments.parquet",
-            drop=False,
+            "temp/eu-connector.geoparquet",
+            "temp/eu-segment.geoparquet",
+            drop=True,
         )
