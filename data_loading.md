@@ -98,13 +98,15 @@ python -m src.data.load_urban_atlas_trees "./temp/urban atlas trees"
 
 Overture Maps can now be downloaded with the [`overturemaps-py`](https://github.com/OvertureMaps/overturemaps-py) utility. This can take several hours, so you may wish to let this run overnight.
 
+> This is currently run in a modified form (`temp/overture_debug/test.py`) to inject the `covering` field metadata to enable filtering from `geopandas` reads. This will be addressed in an associated [pull request](https://github.com/OvertureMaps/overturemaps-py/pull/41).
+
 ```bash
 # activate local venv if not already active
 # source ./.venv/bin/activate
-overturemaps download --bbox=-12.4214,33.2267,45.5351,71.1354 -f geoparquet --type=place -o temp/eu-places.parquet
-overturemaps download --bbox=-12.4214,33.2267,45.5351,71.1354 -f geoparquet --type=connector -o temp/eu-connectors.parquet
-overturemaps download --bbox=-12.4214,33.2267,45.5351,71.1354 -f geoparquet --type=segment -o temp/eu-segments.parquet
-overturemaps download --bbox=-12.4214,33.2267,45.5351,71.1354 -f geoparquet --type=building -o temp/eu-buildings.parquet
+overturemaps download --bbox=-12.4214,33.2267,45.5351,71.1354 -f geoparquet --type=place -o temp/eu-place.parquet
+overturemaps download --bbox=-12.4214,33.2267,45.5351,71.1354 -f geoparquet --type=connector -o temp/eu-connector.parquet
+overturemaps download --bbox=-12.4214,33.2267,45.5351,71.1354 -f geoparquet --type=segment -o temp/eu-segment.parquet
+overturemaps download --bbox=-12.4214,33.2267,45.5351,71.1354 -f geoparquet --type=building -o temp/eu-building.parquet
 ```
 
 The download sizes for the EU are:

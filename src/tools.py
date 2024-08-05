@@ -7,7 +7,6 @@ import json
 import logging
 import os
 import random
-import shutil
 import subprocess
 import time
 import warnings
@@ -215,6 +214,7 @@ def generate_overture_schema() -> dict[str, list[str]]:
     logger.info("Preparing Overture schema")
     overture_csv_file_path = "./src/raw_landuse_schema.csv"
     schema = {
+        "eat_and_drink": [],
         "restaurant": [],
         "bar": [],
         "cafe": [],
@@ -236,13 +236,17 @@ def generate_overture_schema() -> dict[str, list[str]]:
         "real_estate": [],
         "travel": [],
         "mass_media": [],
+        "home_service": [],
         "professional_services": [],
         "structure_and_geography": [],
     }
-    for category, _vals in schema.items():
+    for category, _list_val in schema.items():
         with open(overture_csv_file_path) as schema_csv:
             logger.info(f"Gathering category: {category}")
             for line in schema_csv:
+                # remove header line
+                if "Overture Taxonomy" in line:
+                    continue
                 splits = line.split(";")
                 if not "[" in splits[1]:
                     logger.info(f"Skipping line {line}")
@@ -265,9 +269,9 @@ def snip_overture_by_extents(
         raise ValueError(f'Expected file path to end with "gpkg" or "parquet": {input_path}')
     if not input_path.exists():
         raise ValueError(f"Input path does not exist: {input_path}")
-    ## PENDING issue https://github.com/OvertureMaps/overturemaps-py/issues/40
-    # gdf = gpd.read_parquet(str(input_path.resolve()), bbox=bounds_buff.bounds)
-    gdf = gpd.read(str(input_path.resolve()))
+    # TODO: pending issue https://github.com/OvertureMaps/overturemaps-py/issues/40
+    # for now importing with a locally modified script which injects covering field metadata for bbox
+    gdf = gpd.read_parquet(str(input_path.resolve()), bbox=bounds_buff.bounds)
 
     return gdf
 

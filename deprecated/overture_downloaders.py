@@ -2,6 +2,7 @@
 ogr2ogr -progress -a_srs EPSG:4326 -t_srs EPSG:3035 -spat 23.5564 37.7753 24.0717 38.1758 temp/eu_nodes_3035.gpkg temp/eu_nodes.gpkg
 ogr2ogr -progress -a_srs EPSG:4326 -t_srs EPSG:3035 -spat 23.5564 37.7753 24.0717 38.1758 temp/eu_edges_3035.gpkg temp/eu_edges.gpkg
 """
+
 from __future__ import annotations
 
 from pathlib import Path

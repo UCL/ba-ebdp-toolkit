@@ -152,8 +152,8 @@ if __name__ == "__main__":
     Examples are run from the project folder (the folder containing src)
     python -m src.data.ingest_overture_networks 'temp/eu_nodes.gpkg' 'temp/eu_edges.gpkg'
     """
-    if False:
-        parser = argparse.ArgumentParser(description="Load overture nodes and edges GPKG to DB.")
+    if True:
+        parser = argparse.ArgumentParser(description="Load overture nodes and edges geoparquet file to DB.")
         parser.add_argument(
             "overture_nodes_path",
             type=str,

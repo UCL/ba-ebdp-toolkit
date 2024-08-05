@@ -1,4 +1,5 @@
 """ """
+
 from __future__ import annotations
 
 import argparse
@@ -95,7 +96,7 @@ if __name__ == "__main__":
     python -m src.data.ingest_overture_buildings 'temp/eu_buildings.gpkg'
     """
     if True:
-        parser = argparse.ArgumentParser(description="Load overture buildings GPKG to DB.")
+        parser = argparse.ArgumentParser(description="Load overture buildings geoparquet file to DB.")
         parser.add_argument(
             "overture_buildings_path",
             type=str,
