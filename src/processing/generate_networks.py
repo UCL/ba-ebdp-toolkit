@@ -34,8 +34,9 @@ def generate_clean_network(
             WHERE fid = {bounds_fid}
         )
         SELECT DISTINCT n.fid, n.geom
-        FROM overture.overture_nodes n, bounds b
-        WHERE ST_Intersects(b.geom, n.geom)
+        FROM overture.overture_node n
+        JOIN bounds b ON ST_Intersects(b.geom, n.geom)
+
         """,
         engine,
         index_col="fid",
@@ -43,7 +44,7 @@ def generate_clean_network(
     )
     # skip any empty - where overture data doesn't cover extents e.g. peripheral remote towns
     # these are mostly dealt with (e.g. madeira) when running prepare_boundary_polys
-    if len(nodes_gdf) == 0:
+    if len(nodes_gdf) == 0:  # type: ignore
         return
     edges_gdf = gpd.read_postgis(
         f"""
@@ -52,9 +53,16 @@ def generate_clean_network(
             FROM {bounds_schema}.{bounds_table}
             WHERE fid = {bounds_fid}
         )
-        SELECT DISTINCT e.fid, connectors, road, road_class, surface, level, e.geom
-        FROM overture.overture_edges e, bounds b
-        WHERE ST_Intersects(b.geom, e.geom)
+        SELECT DISTINCT 
+            e.fid, 
+            e.connector_ids, 
+            e.subtype,
+            e.class,
+            e.names,
+            e.level_rules,
+            e.geom
+        FROM overture.overture_edge e
+        JOIN bounds b ON ST_Intersects(b.geom, e.geom)
         """,
         engine,
         index_col="fid",
@@ -63,8 +71,8 @@ def generate_clean_network(
     multigraph = tools.generate_graph(
         nodes_gdf=nodes_gdf,  # type: ignore
         edges_gdf=edges_gdf,  # type: ignore
-        road_class_col="road_class",
-        drop_road_classes=["motorway", "parkingAisle"],
+        road_class_col="class",
+        drop_road_classes=["parkingAisle"],
     )
     # clean
     crawl_dist = 12
@@ -85,15 +93,6 @@ def generate_clean_network(
     graph = graphs.nx_iron_edges(graph)
     G_dual = graphs.nx_to_dual(graph)
     dual_nodes_gdf, dual_edges_gdf, _network_structure = io.network_structure_from_nx(G_dual, crs=3035)
-
-    def attach_primal_edges(node_row):
-        edge = graph.get_edge_data(
-            node_row["primal_edge_node_a"], node_row["primal_edge_node_b"], node_row["primal_edge_idx"]
-        )
-        return edge["geom"]
-
-    # set primal geoms for vis
-    dual_nodes_gdf["edge_geom"] = dual_nodes_gdf.apply(attach_primal_edges, axis=1)
     # write
     dual_nodes_gdf.to_postgis(
         target_nodes_table,
@@ -119,8 +118,7 @@ def process_network(
 ):
     """ """
     if not (
-        tools.check_table_exists("overture", "overture_nodes")
-        and tools.check_table_exists("overture", "overture_edges")
+        tools.check_table_exists("overture", "overture_node") and tools.check_table_exists("overture", "overture_edge")
     ):
         raise IOError("The overture nodes and edges tables need to be created prior to proceeding.")
     logger.info("Preparing cleaned networks")
@@ -189,7 +187,7 @@ if __name__ == "__main__":
     python -m src.processing.generate_networks all --parallel_workers 6
     """
 
-    if True:
+    if False:
         parser = argparse.ArgumentParser(description="Convert raw Overture nodes and edges to network.")
         parser.add_argument(
             "bounds_fid",
@@ -210,9 +208,9 @@ if __name__ == "__main__":
             args.parallel_workers,
         )
     else:
-        bounds_fids = [249]
+        bounds_fids = [447]
         process_network(
             bounds_fids,
-            drop=False,
-            parallel_workers=2,
+            drop=True,
+            parallel_workers=1,
         )

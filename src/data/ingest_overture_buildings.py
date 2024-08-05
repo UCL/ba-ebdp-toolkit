@@ -6,6 +6,7 @@ import argparse
 from pathlib import Path
 
 from shapely import geometry
+from sqlalchemy.dialects.postgresql import JSON
 from tqdm import tqdm
 
 from src import tools
@@ -21,18 +22,28 @@ def process_extent_buildings(
     overture_buildings_path: str | Path,
     target_schema: str,
     target_table: str,
-    bin_path: str | None = None,
 ):
     """ """
     engine = tools.get_sqlalchemy_engine()
-    buildings_gdf = tools.snip_overture_by_extents(overture_buildings_path, bounds_geom, "buildings", bin_path)
+    buildings_gdf = tools.snip_overture_by_extents(overture_buildings_path, bounds_geom)
     buildings_gdf.set_index("id", inplace=True)
     buildings_gdf.rename(columns={"geometry": "geom"}, inplace=True)
     buildings_gdf.set_geometry("geom", inplace=True)
     buildings_gdf["bounds_key"] = bounds_table
     buildings_gdf["bounds_fid"] = bounds_fid
-    buildings_gdf.to_crs(3035).to_postgis(
-        target_table, engine, if_exists="append", schema=target_schema, index=True, index_label="fid"
+    for col in ["sources", "names"]:
+        buildings_gdf[col] = buildings_gdf[col].apply(tools.col_to_json).astype("str")  # type: ignore
+    buildings_gdf.to_crs(3035).to_postgis(  # type: ignore
+        target_table,
+        engine,
+        if_exists="append",
+        schema=target_schema,
+        index=True,
+        index_label="fid",
+        dtype={
+            "sources": JSON,
+            "names": JSON,
+        },
     )
     tools.db_execute(
         f"""
@@ -48,7 +59,6 @@ def process_extent_buildings(
 
 def load_overture_buildings(
     overture_buildings_path: str | Path,
-    bin_path: str | None = None,
     drop: bool = False,
 ) -> None:
     """ """
@@ -62,8 +72,6 @@ def load_overture_buildings(
     target_schema = "overture"
     target_table = "overture_buildings"
     bounds_fids_geoms = tools.iter_boundaries(bounds_schema, bounds_table, bounds_fid_col, bounds_geom_col, wgs84=True)
-    # generate indices on input files
-    tools.create_file_spatial_index(overture_buildings_path)
     # iter
     for bound_fid, bound_geom in tqdm(bounds_fids_geoms):
         tools.process_func_with_bound_tracking(
@@ -78,7 +86,6 @@ def load_overture_buildings(
                 overture_buildings_path,
                 target_schema,
                 target_table,
-                bin_path,
             ],
             content_schema=target_schema,
             content_tables=[target_table],
@@ -102,16 +109,14 @@ if __name__ == "__main__":
             type=str,
             help="Path to overture buildings dataset.",
         )
-        parser.add_argument("--bin_path", type=str, default=None, help="Optional bin path for ogr2ogr.")
         parser.add_argument("--drop", action="store_true", help="Whether to drop existing tables.")
         args = parser.parse_args()
         load_overture_buildings(
             args.overture_buildings_path,
-            bin_path=args.bin_path,
             drop=args.drop,
         )
     else:
         load_overture_buildings(
-            "temp/eu_buildings.geoparquet",
+            "temp/eu-building.geoparquet",
             drop=False,
         )

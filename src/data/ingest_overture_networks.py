@@ -6,6 +6,7 @@ import argparse
 from pathlib import Path
 
 from shapely import geometry
+from sqlalchemy.dialects.postgresql import JSON
 from tqdm import tqdm
 
 from src import tools
@@ -33,8 +34,17 @@ def process_extent_network(
     nodes_gdf.set_geometry("geom", inplace=True)
     nodes_gdf["bounds_key"] = bounds_table
     nodes_gdf["bounds_fid"] = bounds_fid
+    nodes_gdf["sources"] = nodes_gdf["sources"].apply(tools.col_to_json).astype("str")  # type: ignore
     nodes_gdf.to_crs(3035).to_postgis(  # type: ignore
-        target_nodes_table, engine, if_exists="append", schema=target_schema, index=True, index_label="fid"
+        target_nodes_table,
+        engine,
+        if_exists="append",
+        schema=target_schema,
+        index=True,
+        index_label="fid",
+        dtype={
+            "sources": JSON,
+        },
     )
     # cleanup edges
     tools.db_execute(
@@ -54,8 +64,36 @@ def process_extent_network(
     edges_gdf.set_geometry("geom", inplace=True)
     edges_gdf["bounds_key"] = bounds_table
     edges_gdf["bounds_fid"] = bounds_fid
+    for col in [
+        "sources",
+        "names",
+        "access_restrictions",
+        "level_rules",
+        "prohibited_transitions",
+        "road_surface",
+        "road_flags",
+        "speed_limits",
+        "width_rules",
+    ]:
+        edges_gdf[col] = edges_gdf[col].apply(tools.col_to_json).astype("str")  # type: ignore
     edges_gdf.to_crs(3035).to_postgis(  # type: ignore
-        target_edges_table, engine, if_exists="append", schema=target_schema, index=True, index_label="fid"
+        target_edges_table,
+        engine,
+        if_exists="append",
+        schema=target_schema,
+        index=True,
+        index_label="fid",
+        dtype={
+            "sources": JSON,
+            "names": JSON,
+            "access_restrictions": JSON,
+            "level_rules": JSON,
+            "prohibited_transitions": JSON,
+            "road_surface": JSON,
+            "road_flags": JSON,
+            "speed_limits": JSON,
+            "width_rules": JSON,
+        },
     )
     # cleanup edges
     tools.db_execute(
@@ -87,9 +125,6 @@ def load_overture_networks(
     target_nodes_table = "overture_node"
     target_edges_table = "overture_edge"
     bounds_fids_geoms = tools.iter_boundaries(bounds_schema, bounds_table, bounds_fid_col, bounds_geom_col, wgs84=True)
-    # generate indices on input files
-    tools.create_file_spatial_index(overture_nodes_path)
-    tools.create_file_spatial_index(overture_edges_path)
     # iter
     for bound_fid, bound_geom in tqdm(bounds_fids_geoms):
         tools.process_func_with_bound_tracking(
@@ -145,5 +180,5 @@ if __name__ == "__main__":
         load_overture_networks(
             "temp/eu-connector.geoparquet",
             "temp/eu-segment.geoparquet",
-            drop=True,
+            drop=False,
         )

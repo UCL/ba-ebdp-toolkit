@@ -6,6 +6,7 @@ import argparse
 from pathlib import Path
 
 from shapely import geometry
+from sqlalchemy.dialects.postgresql import JSON
 from tqdm import tqdm
 
 from src import tools
@@ -36,10 +37,10 @@ def process_extent_places(
             return None
         return lu_classes["primary"]
 
-    def extract_alt_cat(lu_classes: dict | None):
+    def extract_alt_cats(lu_classes: dict | None):
         if lu_classes is None:
             return None
-        return lu_classes["alternate"]
+        return tools.col_to_text_list(lu_classes["alternate"])
 
     def extract_name(names: dict | None) -> str | None:
         if names is None:
@@ -59,13 +60,33 @@ def process_extent_places(
         return None
 
     places_gdf["main_cat"] = places_gdf["categories"].apply(extract_main_cat)  # type: ignore
-    places_gdf["alt_cat"] = places_gdf["categories"].apply(extract_alt_cat)  # type: ignore
+    places_gdf["alt_cats"] = places_gdf["categories"].apply(extract_alt_cats)  # type: ignore
     places_gdf["common_name"] = places_gdf["names"].apply(extract_name)  # type: ignore
-    places_gdf["major_cat"] = places_gdf["main_cat"].apply(assign_major_cat)  # type: ignore
+    places_gdf["major_lu_schema_class"] = places_gdf["main_cat"].apply(assign_major_cat)  # type: ignore
     places_gdf["bounds_key"] = bounds_table
     places_gdf["bounds_fid"] = bounds_fid
+    for col in [
+        "sources",
+        "names",
+        "categories",
+        "brand",
+        "addresses",
+    ]:
+        places_gdf[col] = places_gdf[col].apply(tools.col_to_json).astype(str)  # type: ignore
     places_gdf.to_crs(3035).to_postgis(  # type: ignore
-        target_table, engine, if_exists="append", schema=target_schema, index=True, index_label="fid"
+        target_table,
+        engine,
+        if_exists="append",
+        schema=target_schema,
+        index=True,
+        index_label="fid",
+        dtype={
+            "sources": JSON,
+            "names": JSON,
+            "categories": JSON,
+            "brand": JSON,
+            "addresses": JSON,
+        },
     )
     tools.db_execute(
         f"""
@@ -94,8 +115,6 @@ def load_overture_places(
     target_schema = "overture"
     target_table = "overture_place"
     bounds_fids_geoms = tools.iter_boundaries(bounds_schema, bounds_table, bounds_fid_col, bounds_geom_col, wgs84=True)
-    # generate indices on input files
-    tools.create_file_spatial_index(overture_places_path)
     # iter
     for bound_fid, bound_geom in tqdm(bounds_fids_geoms):
         tools.process_func_with_bound_tracking(

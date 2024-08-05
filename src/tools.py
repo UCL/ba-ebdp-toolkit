@@ -7,7 +7,6 @@ import json
 import logging
 import os
 import random
-import subprocess
 import time
 import warnings
 from pathlib import Path
@@ -15,12 +14,12 @@ from typing import Any, Callable
 
 import geopandas as gpd
 import networkx as nx
+import numpy as np
 import pandas as pd
 import psycopg2
 import sqlalchemy
 from cityseer.tools import io
 from dotenv import load_dotenv
-from osgeo import ogr
 from shapely import geometry, ops, wkb
 from tqdm import tqdm
 
@@ -61,7 +60,7 @@ def get_sqlalchemy_engine() -> sqlalchemy.engine.Engine:
 
 def db_execute(query: str, params: tuple[Any] | None = None) -> None:
     """ """
-    with psycopg2.connect(**get_db_config()) as db_con:
+    with psycopg2.connect(**get_db_config()) as db_con:  # type: ignore
         with db_con.cursor() as cursor:
             cursor.execute(query, params)
             db_con.commit()
@@ -69,11 +68,40 @@ def db_execute(query: str, params: tuple[Any] | None = None) -> None:
 
 def db_fetch(query: str, params: tuple[Any] | None = None) -> Any:
     """ """
-    with psycopg2.connect(**get_db_config()) as db_con:
+    with psycopg2.connect(**get_db_config()) as db_con:  # type: ignore
         with db_con.cursor() as cursor:
             cursor.execute(query, params)
             rows = cursor.fetchall()
     return rows
+
+
+def convert_ndarrays(obj: Any) -> Any:
+    if isinstance(obj, np.ndarray):
+        return convert_ndarrays(obj.tolist())
+    if isinstance(obj, (list, tuple)):
+        return [convert_ndarrays(item) for item in obj]
+    if isinstance(obj, dict):
+        return {key: convert_ndarrays(value) for key, value in obj.items()}
+    if obj is None or obj == "":
+        return None
+    if isinstance(obj, (str, int, float)):
+        return obj
+    raise ValueError(f"Unhandled type when converting: {type(obj).__name__}")
+
+
+def col_to_json(obj: Any) -> str | None:
+    """Extracts JSON from a geoparquet / geopandas column"""
+    obj = convert_ndarrays(obj)
+    return json.dumps(obj)
+
+
+def col_to_text_list(text_array: np.ndarray | None) -> str | None:
+    """Extracts list of text from geoparquet / geopandas column"""
+    if text_array is None:
+        return None
+    if isinstance(text_array, np.ndarray):
+        return text_array.tolist()
+    raise ValueError(f"Unhandled type when converting: {text_array} to list of text")
 
 
 Connector = tuple[str, geometry.Point]
@@ -120,7 +148,7 @@ def generate_graph(
     nodes_gdf: gpd.GeoDataFrame,
     edges_gdf: gpd.GeoDataFrame,
     road_class_col: str | None = None,
-    drop_road_classes: list[str] = ["motorway", "parkingAisle"],
+    drop_road_classes: list[str] = ["parkingAisle"],
 ) -> nx.MultiGraph:
     """ """
     logger.info("Preparing GeoDataFrames")
@@ -132,7 +160,7 @@ def generate_graph(
     node_map = {}
     for node_row in tqdm(nodes_gdf.itertuples()):
         # catch duplicates in case of overture dupes by xy or database dupes
-        xy_key = f"{node_row.geom.x}-{node_row.geom.y}"
+        xy_key = f"{round(node_row.geom.x, 1)}-{round(node_row.geom.y, 1)}"  # type: ignore
         if xy_key not in node_map:
             node_map[xy_key] = node_row.Index
         # merged key
@@ -141,8 +169,8 @@ def generate_graph(
         if not multigraph.has_node(node_row.Index):
             multigraph.add_node(
                 merged_key,
-                x=node_row.geom.x,
-                y=node_row.geom.y,
+                x=node_row.geom.x,  # type: ignore
+                y=node_row.geom.y,  # type: ignore
             )
     logger.info("Adding edges to graph")
     kept_road_types: set[str] = set()
@@ -151,13 +179,8 @@ def generate_graph(
             if edges_data[road_class_col] in drop_road_classes:
                 continue
             kept_road_types.add(edges_data[road_class_col])
-        # drop tunnels
-        road_data = json.loads(edges_data["road"])
-        if "flags" in road_data:
-            if "isTunnel" in road_data["flags"]:
-                continue
         uniq_fids = set()
-        connector_fids: list[str] = json.loads(edges_data.connectors)
+        connector_fids: list[str] = edges_data.connector_ids
         connector_infos: list[tuple[str, geometry.Point]] = []
         missing_connectors = False
         for connector_fid in connector_fids:
@@ -455,34 +478,6 @@ def process_func_with_bound_tracking(
         logger.info(f"Loading {bounds_schema}.{bounds_table} bounds fid {bound_fid}")
         core_function(*func_args)
         tracking_state_set_loaded(load_key, bound_fid)
-
-
-def create_file_spatial_index(file_path: str | Path) -> None:
-    """ """
-    file_ds = ogr.Open(file_path, update=True)
-    if file_ds:
-        num_layers = file_ds.GetLayerCount()
-        for i in range(num_layers):
-            layer = file_ds.GetLayerByIndex(i)
-            layer_name = layer.GetName()
-            geom_col_name = layer.GetGeometryColumn()
-            if not geom_col_name:
-                continue
-            try:
-                subprocess.run(
-                    ["ogrinfo", "-sql", f"SELECT CreateSpatialIndex('{layer_name}', '{geom_col_name}')", file_path],
-                    check=True,  # Check for command success
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.PIPE,
-                    text=True,  # Capture output as text
-                )
-            except subprocess.CalledProcessError as err:
-                logger.error(err.stdout)
-                logger.error(err.stderr)
-                raise err
-
-        # Close the GeoPackage
-        file_ds = None
 
 
 def load_bounds_fid_network_from_db(engine: sqlalchemy.Engine, bounds_fid: int, buffer_col: str) -> nx.MultiGraph:
