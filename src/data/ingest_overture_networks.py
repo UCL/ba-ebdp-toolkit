@@ -34,7 +34,7 @@ def process_extent_network(
     nodes_gdf.set_geometry("geom", inplace=True)
     nodes_gdf["bounds_key"] = bounds_table
     nodes_gdf["bounds_fid"] = bounds_fid
-    nodes_gdf["sources"] = nodes_gdf["sources"].apply(tools.col_to_json).astype("str")  # type: ignore
+    nodes_gdf["sources"] = nodes_gdf["sources"].apply(tools.col_to_json)  # type: ignore
     nodes_gdf.to_crs(3035).to_postgis(  # type: ignore
         target_nodes_table,
         engine,
@@ -64,6 +64,9 @@ def process_extent_network(
     edges_gdf.set_geometry("geom", inplace=True)
     edges_gdf["bounds_key"] = bounds_table
     edges_gdf["bounds_fid"] = bounds_fid
+    # convert connector ids from ndarray to list
+    edges_gdf["connector_ids"] = edges_gdf["connector_ids"].apply(tools.col_to_text_list)  # type: ignore
+    # convert other data columns to JSON
     for col in [
         "sources",
         "names",

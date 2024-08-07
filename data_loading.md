@@ -98,7 +98,7 @@ python -m src.data.load_urban_atlas_trees "./temp/urban atlas trees"
 
 Overture Maps can now be downloaded with the [`overturemaps-py`](https://github.com/OvertureMaps/overturemaps-py) utility. This can take several hours, so you may wish to let this run overnight.
 
-> This is currently run in a modified form (`temp/overture_debug/test.py`) to inject the `covering` field metadata to enable filtering from `geopandas` reads. This will be addressed in an associated [pull request](https://github.com/OvertureMaps/overturemaps-py/pull/41).
+> This is currently run in a modified form (`temp/overture_debug/test.py`) to inject the `covering` field metadata to enable filtering from `geopandas` reads. This will be addressed in an associated [pull request](https://github.com/OvertureMaps/overturemaps-py/pull/41). Likely to be in the distributed package from v0.9
 
 ```bash
 # activate local venv if not already active

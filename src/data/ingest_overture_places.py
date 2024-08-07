@@ -61,10 +61,15 @@ def process_extent_places(
 
     places_gdf["main_cat"] = places_gdf["categories"].apply(extract_main_cat)  # type: ignore
     places_gdf["alt_cats"] = places_gdf["categories"].apply(extract_alt_cats)  # type: ignore
+    for col in [
+        "websites",
+        "socials",
+        "emails",
+        "phones",
+    ]:
+        places_gdf[col] = places_gdf[col].apply(tools.col_to_text_list)  # type: ignore
     places_gdf["common_name"] = places_gdf["names"].apply(extract_name)  # type: ignore
     places_gdf["major_lu_schema_class"] = places_gdf["main_cat"].apply(assign_major_cat)  # type: ignore
-    places_gdf["bounds_key"] = bounds_table
-    places_gdf["bounds_fid"] = bounds_fid
     for col in [
         "sources",
         "names",
@@ -73,6 +78,8 @@ def process_extent_places(
         "addresses",
     ]:
         places_gdf[col] = places_gdf[col].apply(tools.col_to_json).astype(str)  # type: ignore
+    places_gdf["bounds_key"] = bounds_table
+    places_gdf["bounds_fid"] = bounds_fid
     places_gdf.to_crs(3035).to_postgis(  # type: ignore
         target_table,
         engine,
