@@ -64,12 +64,12 @@ def process_extent_network(
     edges_gdf.set_geometry("geom", inplace=True)
     edges_gdf["bounds_key"] = bounds_table
     edges_gdf["bounds_fid"] = bounds_fid
-    # convert connector ids from ndarray to list
-    edges_gdf["connector_ids"] = edges_gdf["connector_ids"].apply(tools.col_to_text_list)  # type: ignore
     # convert other data columns to JSON
     for col in [
         "sources",
         "names",
+        "connector_ids",
+        "routes",
         "access_restrictions",
         "level_rules",
         "prohibited_transitions",
@@ -89,6 +89,8 @@ def process_extent_network(
         dtype={
             "sources": JSON,
             "names": JSON,
+            "connector_ids": JSON,
+            "routes": JSON,
             "access_restrictions": JSON,
             "level_rules": JSON,
             "prohibited_transitions": JSON,

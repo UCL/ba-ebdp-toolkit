@@ -1,28 +1,26 @@
-""" """
+"""
+This step extracts a basic network - no cleaning at this stage.
+"""
 
 from __future__ import annotations
 
 import argparse
-import concurrent.futures
-import os
-import traceback
 
 import geopandas as gpd
-from cityseer.tools import graphs, io
-from geoalchemy2 import Geometry
+from cityseer.tools import io
+from tqdm import tqdm
 
 from src import tools
 
 logger = tools.get_logger(__name__)
 
 
-def generate_clean_network(
+def generate_raw_network(
     bounds_fid: int | str,
     bounds_schema: str,
     bounds_table: str,
     target_schema: str,
-    target_nodes_table: str,
-    target_edges_table: str,
+    target_table: str,
 ):
     """ """
     engine = tools.get_sqlalchemy_engine()
@@ -53,16 +51,18 @@ def generate_clean_network(
             FROM {bounds_schema}.{bounds_table}
             WHERE fid = {bounds_fid}
         )
-        SELECT DISTINCT 
+        SELECT DISTINCT ON (e.fid)
             e.fid, 
             e.connector_ids, 
-            e.subtype,
             e.class,
             e.names,
+            e.routes,
             e.level_rules,
             e.geom
         FROM overture.overture_edge e
         JOIN bounds b ON ST_Intersects(b.geom, e.geom)
+        -- don't select rail or water
+        WHERE subtype = 'road'
         """,
         engine,
         index_col="fid",
@@ -71,65 +71,30 @@ def generate_clean_network(
     multigraph = tools.generate_graph(
         nodes_gdf=nodes_gdf,  # type: ignore
         edges_gdf=edges_gdf,  # type: ignore
-        road_class_col="class",
-        drop_road_classes=["parkingAisle"],
+        # see function definition for dropped road types e.g. parking aisles
     )
-    # clean
-    crawl_dist = 12
-    contains_buffer_dist = 50
-    parallel_dist = 15
-    graph = graphs.nx_remove_filler_nodes(multigraph)
-    graph = graphs.nx_remove_dangling_nodes(graph)
-    graph = graphs.nx_consolidate_nodes(
-        graph, buffer_dist=crawl_dist, crawl=True, contains_buffer_dist=contains_buffer_dist
-    )
-    graph = graphs.nx_split_opposing_geoms(graph, buffer_dist=parallel_dist, contains_buffer_dist=contains_buffer_dist)
-    graph = graphs.nx_consolidate_nodes(graph, buffer_dist=parallel_dist, contains_buffer_dist=contains_buffer_dist)
-    graph = graphs.nx_remove_filler_nodes(graph)
-    graph = graphs.nx_iron_edges(graph)
-    graph = graphs.nx_split_opposing_geoms(graph, buffer_dist=parallel_dist, contains_buffer_dist=contains_buffer_dist)
-    graph = graphs.nx_consolidate_nodes(graph, buffer_dist=parallel_dist, contains_buffer_dist=contains_buffer_dist)
-    graph = graphs.nx_remove_filler_nodes(graph)
-    graph = graphs.nx_iron_edges(graph)
-    G_dual = graphs.nx_to_dual(graph)
-    dual_nodes_gdf, dual_edges_gdf, _network_structure = io.network_structure_from_nx(G_dual, crs=3035)
+    edges_gdf = io.geopandas_from_nx(multigraph, crs=3035)
     # write
-    dual_nodes_gdf.to_postgis(
-        target_nodes_table,
-        engine,
-        if_exists="append",
-        schema=target_schema,
-        index=True,
-        index_label="fid",
-        dtype={
-            "geom": Geometry(geometry_type="POINT", srid=3035),
-            "edge_geom": Geometry(geometry_type="LINESTRING", srid=3035),
-        },
-    )
-    dual_edges_gdf.to_postgis(
-        target_edges_table, engine, if_exists="append", schema=target_schema, index=True, index_label="fid"
-    )
+    edges_gdf.to_postgis(target_table, engine, if_exists="append", schema=target_schema, index=True, index_label="fid")
 
 
 def process_network(
     target_bounds_fids: list[int] | str,
     drop: bool = False,
-    parallel_workers: int = 2,
 ):
     """ """
     if not (
         tools.check_table_exists("overture", "overture_node") and tools.check_table_exists("overture", "overture_edge")
     ):
         raise IOError("The overture nodes and edges tables need to be created prior to proceeding.")
-    logger.info("Preparing cleaned networks")
-    load_key = "clean_network"
+    logger.info("Preparing raw networks")
+    load_key = "raw_network"
     bounds_schema = "eu"
     bounds_table = "unioned_bounds_10000"
     bounds_geom_col = "geom"
     bounds_fid_col = "fid"
     target_schema = "overture"
-    target_nodes_table = "network_nodes_clean"
-    target_edges_table = "network_edges_clean"
+    target_table = "network_edges_raw"
     bounds_fids_geoms = tools.iter_boundaries(bounds_schema, bounds_table, bounds_fid_col, bounds_geom_col, wgs84=False)
     # check fids
     bounds_fids = [big[0] for big in bounds_fids_geoms]
@@ -143,48 +108,32 @@ def process_network(
             f"or should correspond to an fid found in {bounds_schema}.{bounds_table} table."
         )
     # set to quiet mode
-    os.environ["CITYSEER_QUIET_MODE"] = "true"
-
-    futures = {}
-    with concurrent.futures.ProcessPoolExecutor(max_workers=parallel_workers) as executor:
-        try:
-            for bound_fid in process_fids:
-                args = (
-                    bound_fid,
-                    load_key,
-                    generate_clean_network,
-                    [
-                        bound_fid,
-                        bounds_schema,
-                        bounds_table,
-                        target_schema,
-                        target_nodes_table,
-                        target_edges_table,
-                    ],
-                    target_schema,
-                    [target_nodes_table, target_edges_table],
-                    bounds_schema,
-                    bounds_table,
-                    bounds_geom_col,
-                    bounds_fid_col,
-                    drop,
-                )
-                futures[executor.submit(tools.process_func_with_bound_tracking, *args)] = args
-            for future in concurrent.futures.as_completed(futures):
-                try:
-                    future.result()
-                except Exception as exc:
-                    logger.error(traceback.format_exc())
-                    raise RuntimeError("An error occurred in the background task") from exc
-        except KeyboardInterrupt:
-            executor.shutdown(wait=True, cancel_futures=True)
-            raise
+    for bound_fid in tqdm(process_fids):
+        tools.process_func_with_bound_tracking(
+            bound_fid=bound_fid,
+            load_key=load_key,
+            core_function=generate_raw_network,
+            func_args=[
+                bound_fid,
+                bounds_schema,
+                bounds_table,
+                target_schema,
+                target_table,
+            ],
+            content_schema=target_schema,
+            content_tables=[target_table],
+            bounds_schema=bounds_schema,
+            bounds_table=bounds_table,
+            bounds_geom_col=bounds_geom_col,
+            bounds_fid_col=bounds_fid_col,
+            drop=drop,
+        )
 
 
 if __name__ == "__main__":
     """
     Examples are run from the project folder (the folder containing src)
-    python -m src.processing.generate_networks all --parallel_workers 6
+    python -m src.processing.generate_networks all
     """
 
     if False:
@@ -194,23 +143,15 @@ if __name__ == "__main__":
             type=tools.bounds_fid_type,
             help=("A bounds fid as int to load a specific bounds. Use 'all' to load all bounds."),
         )
-        parser.add_argument(
-            "--parallel_workers",
-            type=int,
-            default=2,  # Set your desired default value here
-            help="The number of CPU cores to use for processing bounds in parallel. Defaults to 5.",
-        )
         parser.add_argument("--drop", action="store_true", help="Whether to drop existing tables.")
         args = parser.parse_args()
         process_network(
             args.bounds_fid,
             args.drop,
-            args.parallel_workers,
         )
     else:
         bounds_fids = [447]
         process_network(
             bounds_fids,
             drop=True,
-            parallel_workers=1,
         )

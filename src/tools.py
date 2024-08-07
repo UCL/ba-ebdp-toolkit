@@ -10,7 +10,7 @@ import random
 import time
 import warnings
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any, Callable, cast
 
 import geopandas as gpd
 import networkx as nx
@@ -91,17 +91,10 @@ def convert_ndarrays(obj: Any) -> Any:
 
 def col_to_json(obj: Any) -> str | None:
     """Extracts JSON from a geoparquet / geopandas column"""
+    if obj is None or (isinstance(obj, str) and obj == ""):
+        return "null"
     obj = convert_ndarrays(obj)
     return json.dumps(obj)
-
-
-def col_to_text_list(text_array: np.ndarray | None) -> str | None:
-    """Extracts list of text from geoparquet / geopandas column"""
-    if text_array is None:
-        return None
-    if isinstance(text_array, np.ndarray):
-        return text_array.tolist()
-    raise ValueError(f"Unhandled type when converting: {text_array} to list of text")
 
 
 Connector = tuple[str, geometry.Point]
@@ -109,7 +102,7 @@ Connector = tuple[str, geometry.Point]
 
 def split_street_segment(
     line_string: geometry.LineString, connector_infos: list[Connector]
-) -> list[tuple[str, str, geometry.LineString]]:
+) -> list[tuple[geometry.LineString, Connector, Connector]]:
     """ """
     # overture segments can span multiple intersections
     # sort through and split until pairings are ready for insertion to the graph
@@ -125,9 +118,9 @@ def split_street_segment(
             if _point.distance(old_line_string) > 0:
                 continue
             new_connectors.append((_fid, _point))
-        # if only two connectors, check that these are endpoints and continue
+        # if only two connectors
         if len(new_connectors) == 2:
-            node_segment_pairs.append((old_line_string, *new_connectors))
+            node_segment_pairs.append((old_line_string, new_connectors[0], new_connectors[1]))
             continue
         # look for splits
         for _fid, _point in new_connectors:
@@ -138,8 +131,8 @@ def split_street_segment(
             # otherwise unpack
             line_string_a, line_string_b = splits.geoms
             # otherwise split into two bundles and reset
-            node_segment_lots.append((line_string_a, new_connectors))
-            node_segment_lots.append((line_string_b, new_connectors))
+            node_segment_lots.append((cast(geometry.LineString, line_string_a), new_connectors))
+            node_segment_lots.append((cast(geometry.LineString, line_string_b), new_connectors))
             break
     return node_segment_pairs
 
@@ -147,8 +140,7 @@ def split_street_segment(
 def generate_graph(
     nodes_gdf: gpd.GeoDataFrame,
     edges_gdf: gpd.GeoDataFrame,
-    road_class_col: str | None = None,
-    drop_road_classes: list[str] = ["parkingAisle"],
+    drop_road_types: list[str] = ["parking_aisle"],
 ) -> nx.MultiGraph:
     """ """
     logger.info("Preparing GeoDataFrames")
@@ -160,7 +152,9 @@ def generate_graph(
     node_map = {}
     for node_row in tqdm(nodes_gdf.itertuples()):
         # catch duplicates in case of overture dupes by xy or database dupes
-        xy_key = f"{round(node_row.geom.x, 1)}-{round(node_row.geom.y, 1)}"  # type: ignore
+        x = node_row.geom.x  # type: ignore
+        y = node_row.geom.y  # type: ignore
+        xy_key = f"{x}-{y}"
         if xy_key not in node_map:
             node_map[xy_key] = node_row.Index
         # merged key
@@ -169,16 +163,18 @@ def generate_graph(
         if not multigraph.has_node(node_row.Index):
             multigraph.add_node(
                 merged_key,
-                x=node_row.geom.x,  # type: ignore
-                y=node_row.geom.y,  # type: ignore
+                x=x,
+                y=y,
             )
     logger.info("Adding edges to graph")
-    kept_road_types: set[str] = set()
+    dropped_road_types = set()
+    kept_road_types = set()
     for edge_idx, edges_data in tqdm(edges_gdf.iterrows()):
-        if road_class_col is not None:
-            if edges_data[road_class_col] in drop_road_classes:
-                continue
-            kept_road_types.add(edges_data[road_class_col])
+        road_class = edges_data["class"]
+        if road_class in drop_road_types:
+            dropped_road_types.add(road_class)
+            continue
+        kept_road_types.add(road_class)
         uniq_fids = set()
         connector_fids: list[str] = edges_data.connector_ids
         connector_infos: list[tuple[str, geometry.Point]] = []
@@ -203,6 +199,26 @@ def generate_graph(
         if len(connector_infos) < 2:
             # logger.warning("Only one connector pair for edge")
             continue
+        # extract levels, names, routes, highways
+        # do this once instead of for each new split segment
+        levels = set([])
+        if edges_data["level_rules"] is not None:
+            for level_info in edges_data["level_rules"]:
+                levels.add(level_info["value"])
+        names = []  # takes list form for nx
+        if edges_data["names"] is not None:
+            if "primary" in edges_data["names"]:
+                names.append(edges_data["names"]["primary"])
+        routes = set([])
+        if edges_data["routes"] is not None:
+            for routes_info in edges_data["routes"]:
+                if "ref" in routes_info:
+                    routes.add(routes_info["ref"])
+        highways = []  # takes list form for nx
+        if road_class is not None:
+            if road_class not in ["unknown", "unclassified"]:
+                highways.append(road_class)
+        # split segments and build
         street_segs = split_street_segment(edges_data.geom, connector_infos)
         for seg_geom, node_info_a, node_info_b in street_segs:
             if not node_info_a[1].touches(seg_geom) or not node_info_b[1].touches(seg_geom):
@@ -223,10 +239,13 @@ def generate_graph(
                     node_info_a[0],
                     node_info_b[0],
                     edge_idx=edge_idx,
-                    level=edges_data.level,
                     geom=seg_geom,
+                    levels=list(levels),
+                    names=names,
+                    routes=list(routes),
+                    highways=highways,
                 )
-    logger.info(f'Dropped road types: {", ".join(drop_road_classes)}')
+    logger.info(f'Dropped road types: {", ".join(dropped_road_types)}')
     logger.info(f'Kept road types: {", ".join(kept_road_types)}')
 
     return multigraph

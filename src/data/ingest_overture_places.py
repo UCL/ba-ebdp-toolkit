@@ -40,7 +40,7 @@ def process_extent_places(
     def extract_alt_cats(lu_classes: dict | None):
         if lu_classes is None:
             return None
-        return tools.col_to_text_list(lu_classes["alternate"])
+        return tools.col_to_json(lu_classes["alternate"])
 
     def extract_name(names: dict | None) -> str | None:
         if names is None:
@@ -61,13 +61,6 @@ def process_extent_places(
 
     places_gdf["main_cat"] = places_gdf["categories"].apply(extract_main_cat)  # type: ignore
     places_gdf["alt_cats"] = places_gdf["categories"].apply(extract_alt_cats)  # type: ignore
-    for col in [
-        "websites",
-        "socials",
-        "emails",
-        "phones",
-    ]:
-        places_gdf[col] = places_gdf[col].apply(tools.col_to_text_list)  # type: ignore
     places_gdf["common_name"] = places_gdf["names"].apply(extract_name)  # type: ignore
     places_gdf["major_lu_schema_class"] = places_gdf["main_cat"].apply(assign_major_cat)  # type: ignore
     for col in [
@@ -76,6 +69,10 @@ def process_extent_places(
         "categories",
         "brand",
         "addresses",
+        "websites",
+        "socials",
+        "emails",
+        "phones",
     ]:
         places_gdf[col] = places_gdf[col].apply(tools.col_to_json).astype(str)  # type: ignore
     places_gdf["bounds_key"] = bounds_table
@@ -93,6 +90,10 @@ def process_extent_places(
             "categories": JSON,
             "brand": JSON,
             "addresses": JSON,
+            "websites": JSON,
+            "socials": JSON,
+            "emails": JSON,
+            "phones": JSON,
         },
     )
     tools.db_execute(
