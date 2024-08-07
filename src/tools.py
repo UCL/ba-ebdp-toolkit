@@ -140,7 +140,7 @@ def split_street_segment(
 def generate_graph(
     nodes_gdf: gpd.GeoDataFrame,
     edges_gdf: gpd.GeoDataFrame,
-    drop_road_types: list[str] = ["parking_aisle"],
+    drop_road_types: list[str] = [],
 ) -> nx.MultiGraph:
     """ """
     logger.info("Preparing GeoDataFrames")

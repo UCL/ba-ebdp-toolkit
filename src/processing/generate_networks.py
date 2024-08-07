@@ -71,9 +71,11 @@ def generate_raw_network(
     multigraph = tools.generate_graph(
         nodes_gdf=nodes_gdf,  # type: ignore
         edges_gdf=edges_gdf,  # type: ignore
-        # see function definition for dropped road types e.g. parking aisles
+        # not dropping "parking_aisle" because this sometimes removes important links
     )
     edges_gdf = io.geopandas_from_nx(multigraph, crs=3035)
+    edges_gdf["bounds_key"] = bounds_table
+    edges_gdf["bounds_fid"] = bounds_fid
     # write
     edges_gdf.to_postgis(target_table, engine, if_exists="append", schema=target_schema, index=True, index_label="fid")
 
@@ -97,7 +99,7 @@ def process_network(
     target_table = "network_edges_raw"
     bounds_fids_geoms = tools.iter_boundaries(bounds_schema, bounds_table, bounds_fid_col, bounds_geom_col, wgs84=False)
     # check fids
-    bounds_fids = [big[0] for big in bounds_fids_geoms]
+    bounds_fids = reversed([big[0] for big in bounds_fids_geoms])
     if isinstance(target_bounds_fids, str) and target_bounds_fids == "all":
         process_fids = bounds_fids
     elif set(target_bounds_fids).issubset(set(bounds_fids)):
@@ -107,7 +109,6 @@ def process_network(
             'target_bounds_fids must either be "all" to load all boundaries '
             f"or should correspond to an fid found in {bounds_schema}.{bounds_table} table."
         )
-    # set to quiet mode
     for bound_fid in tqdm(process_fids):
         tools.process_func_with_bound_tracking(
             bound_fid=bound_fid,
@@ -150,7 +151,7 @@ if __name__ == "__main__":
             args.drop,
         )
     else:
-        bounds_fids = [447]
+        bounds_fids = "all"  # [447]
         process_network(
             bounds_fids,
             drop=True,
