@@ -16,7 +16,7 @@ import geopandas as gpd
 import networkx as nx
 import numpy as np
 import pandas as pd
-import psycopg2
+import psycopg
 import sqlalchemy
 from cityseer.tools import io
 from dotenv import load_dotenv
@@ -42,7 +42,7 @@ def get_db_config() -> dict[str, str | None]:
     if db_config_json is None:
         raise ValueError("Unable to retrieve DB_CONFIG environment variable.")
     db_config = json.loads(db_config_json)
-    for key in ["host", "port", "user", "database", "password"]:
+    for key in ["host", "port", "user", "dbname", "password"]:
         if key not in db_config:
             raise ValueError(f"Unable to find expected key: {key} in DB_CONFIG")
     return db_config
@@ -52,23 +52,23 @@ def get_sqlalchemy_engine() -> sqlalchemy.engine.Engine:
     """ """
     db_config = get_db_config()
     db_con_str = (
-        f"postgresql+psycopg2://{db_config['user']}:{db_config['password']}"
-        f"@{db_config['host']}:{db_config['port']}/{db_config['database']}"
+        f"postgresql+psycopg://{db_config['user']}:{db_config['password']}"
+        f"@{db_config['host']}:{db_config['port']}/{db_config['dbname']}"
     )
     return sqlalchemy.create_engine(db_con_str, pool_pre_ping=True)
 
 
 def db_execute(query: str, params: tuple[Any] | None = None) -> None:
     """ """
-    with psycopg2.connect(**get_db_config()) as db_con:  # type: ignore
+    with psycopg.connect(**get_db_config()) as db_con:  # type: ignore
         with db_con.cursor() as cursor:
-            cursor.execute(query, params)
+            cursor.execute(query, params)  # type: ignore
             db_con.commit()
 
 
 def db_fetch(query: str, params: tuple[Any] | None = None) -> Any:
     """ """
-    with psycopg2.connect(**get_db_config()) as db_con:  # type: ignore
+    with psycopg.connect(**get_db_config()) as db_con:  # type: ignore
         with db_con.cursor() as cursor:
             cursor.execute(query, params)
             rows = cursor.fetchall()
