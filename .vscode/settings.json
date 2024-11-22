@@ -13,4 +13,5 @@
     },
     "editor.defaultFormatter": "charliermarsh.ruff"
   },
+  "cSpell.enabled": false
 }

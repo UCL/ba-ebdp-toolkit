@@ -2,8 +2,6 @@
 PENDING: generate clean networks - first progressing network cleaning paper
 """
 
-from __future__ import annotations
-
 import argparse
 import concurrent.futures
 import os

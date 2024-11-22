@@ -2,8 +2,6 @@
 This step extracts a basic network - no cleaning at this stage.
 """
 
-from __future__ import annotations
-
 import argparse
 
 import geopandas as gpd

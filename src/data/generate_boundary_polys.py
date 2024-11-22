@@ -1,7 +1,5 @@
 """ """
 
-from __future__ import annotations
-
 import argparse
 
 import geopandas as gpd
@@ -58,9 +56,9 @@ def extract_boundary_polys(src_schema_name: str, bounds_raster_table_name: str) 
 
     # generate the gdf
     data = {"geom": polys}
-    bounds_gdf = gpd.GeoDataFrame(data, geometry="geom", crs=dataset.crs)
-    bounds_gdf["geom_2000"] = bounds_gdf["geom"].buffer(2000)
-    bounds_gdf["geom_10000"] = bounds_gdf["geom"].buffer(10000)
+    bounds_gdf = gpd.GeoDataFrame(data, geometry="geom", crs=dataset.crs)  # type:ignore
+    bounds_gdf["geom_2000"] = bounds_gdf["geom"].buffer(2000)  # type:ignore
+    bounds_gdf["geom_10000"] = bounds_gdf["geom"].buffer(10000)  # type:ignore
     # write to DB
     tools.prepare_schema("eu")
     bounds_gdf.to_postgis(

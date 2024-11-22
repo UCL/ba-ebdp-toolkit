@@ -1,7 +1,5 @@
 """ """
 
-from __future__ import annotations
-
 import argparse
 import os
 import shutil
@@ -100,7 +98,8 @@ def load_bldg_hts(data_dir_path: str, bin_path: str | None) -> None:
 if __name__ == "__main__":
     """
     Examples are run from the project folder (the folder containing src)
-    python -m src.data.load_bldg_hts_raster "./temp/Digital height Model EU" eu bldg_hts /Applications/Postgres.app/Contents/Versions/15/bin/
+    python -m src.data.load_bldg_hts_raster "./temp/Digital height Model EU" eu bldg_hts \
+        /Applications/Postgres.app/Contents/Versions/15/bin/
     """
     if True:
         parser = argparse.ArgumentParser(description="Load building heights raster data.")

@@ -17,7 +17,8 @@ poly_wgs, poly_utm, _utm_zone_number, _utm_zone_letter = io.buffered_point_poly(
 # %% [markdown]
 # ### Automatic cleaning
 #
-# This approach prepares a network using automated algorithmic cleaning methods to consolidate complex intersections and parallel roads.
+# This approach prepares a network using automated algorithmic cleaning methods to consolidate complex intersections
+# and parallel roads.
 #
 
 # %%
@@ -76,9 +77,11 @@ nodes_gdf_minimal_simpl = networks.node_centrality_simplest(
 # %% [markdown]
 # ### Dissolving network weights
 #
-# This approach doesn't attempt to consolidate the network. Instead, it uses techniques to control for messy network representations:
+# This approach doesn't attempt to consolidate the network. Instead, it uses techniques to control for messy network
+# representations:
 #
-# - It "dissolves" network weights - meaning that nodes representing street segments which are likely duplicitous are weighted less heavily.
+# - It "dissolves" network weights - meaning that nodes representing street segments which are likely duplicitous are
+# weighted less heavily.
 # - It injects "jitter" to derive more intuitively consistent network routes.
 #
 
@@ -212,7 +215,7 @@ for d, b, avg_d in zip(distances, betas, avg_dists, strict=True):
     plt.show()
 
 # %%
-for d, b, avg_d in zip(distances, betas, avg_dists, strict=True):
+for d, _b, _avg_d in zip(distances, betas, avg_dists, strict=True):
     print(
         f"""
     "Simplest path harmonic closeness centrality
@@ -255,7 +258,7 @@ for d, b, avg_d in zip(distances, betas, avg_dists, strict=True):
     plt.tight_layout()
     plt.show()
 
-for d, b, avg_d in zip(distances, betas, avg_dists, strict=True):
+for d, _b, _avg_d in zip(distances, betas, avg_dists, strict=True):
     print(
         f"""
     Simplest path betweenness centrality:

@@ -1,7 +1,5 @@
 """ """
 
-from __future__ import annotations
-
 import argparse
 import json
 import logging
@@ -61,18 +59,16 @@ def get_sqlalchemy_engine() -> sqlalchemy.engine.Engine:
 
 def db_execute(query: str, params: tuple[Any] | None = None) -> None:
     """ """
-    with psycopg.connect(**get_db_config()) as db_con:  # type: ignore
-        with db_con.cursor() as cursor:
-            cursor.execute(query, params)  # type: ignore
-            db_con.commit()
+    with psycopg.connect(**get_db_config()) as db_con, db_con.cursor() as cursor:  # type: ignore
+        cursor.execute(query, params)  # type: ignore
+        db_con.commit()
 
 
 def db_fetch(query: str, params: tuple[Any] | None = None) -> Any:
     """ """
-    with psycopg.connect(**get_db_config()) as db_con:  # type: ignore
-        with db_con.cursor() as cursor:
-            cursor.execute(query, params)
-            rows = cursor.fetchall()
+    with psycopg.connect(**get_db_config()) as db_con, db_con.cursor() as cursor:  # type: ignore
+        cursor.execute(query, params)  # type: ignore
+        rows = cursor.fetchall()
     return rows
 
 
@@ -231,7 +227,7 @@ def generate_graph(
             dupe = False
             if multigraph.has_edge(node_info_a[0], node_info_b[0]):
                 edges = multigraph[node_info_a[0]][node_info_b[0]]
-                for edge_idx, edge_val in dict(edges).items():
+                for _edge_idx, edge_val in dict(edges).items():
                     if edge_val["geom"].buffer(1).contains(seg_geom):
                         dupe = True
                         break
@@ -558,5 +554,5 @@ def bounds_fid_type(value):
         return value
     try:
         return [int(value)]
-    except ValueError:
-        raise argparse.ArgumentTypeError(f"{value} is not a valid bounds_fid. It must be an integer or 'all'.")
+    except ValueError as e:
+        raise argparse.ArgumentTypeError(f"{value} is not a valid bounds_fid. It must be an integer or 'all'.") from e

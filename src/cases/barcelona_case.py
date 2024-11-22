@@ -1,5 +1,4 @@
 # %%
-from __future__ import annotations
 
 from pathlib import Path
 
@@ -43,7 +42,7 @@ def nx_from_barcelona_gpkg(
                 edges.append((edge_props, edge_geom, nd_a_key, nd_b_key))
     for nd_key, node in nodes.items():
         g_multi.add_node(nd_key, x=node[0], y=node[1])
-    for edge_props, edge_geom, nd_a_key, nd_b_key in edges:
+    for _edge_props, edge_geom, nd_a_key, nd_b_key in edges:
         g_multi.add_edge(nd_a_key, nd_b_key, geom=edge_geom)
 
     print(f"Nodes: {g_multi.number_of_nodes()}")
@@ -411,7 +410,7 @@ for d, _b, avg_d in zip(distances, betas, avg_dists, strict=True):
     plt.show()
 
 # %%
-for d, _b, avg_d in zip(distances, betas, avg_dists, strict=True):
+for d, _b, _avg_d in zip(distances, betas, avg_dists, strict=True):
     fig, axes = plt.subplots(2, 2, figsize=(7, 8), dpi=200, facecolor=bg_colour)
     fig.suptitle(f"Simplest path closeness centrality {d}m", color=font_colour)
     plot.plot_scatter(
@@ -457,7 +456,7 @@ for d, _b, avg_d in zip(distances, betas, avg_dists, strict=True):
     plt.tight_layout()
     plt.show()
 
-for d, _b, avg_d in zip(distances, betas, avg_dists, strict=True):
+for d, _b, _avg_d in zip(distances, betas, avg_dists, strict=True):
     fig, axes = plt.subplots(2, 2, figsize=(7, 8), dpi=200, facecolor=bg_colour)
     fig.suptitle(f"Simplest path betweenness {d}m", color=font_colour)
     plot.plot_scatter(

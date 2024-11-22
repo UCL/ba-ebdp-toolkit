@@ -3,7 +3,6 @@ Based on https://github.com/songololo/phd
 """
 
 # %%
-from __future__ import annotations
 
 import os
 from pathlib import Path
@@ -144,4 +143,4 @@ data_gdf = gpd.read_postgis(
     index_col="fid",
     geom_col="geom",
 )
-data_gdf
+print(data_gdf)
