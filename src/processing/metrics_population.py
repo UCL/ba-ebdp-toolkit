@@ -71,29 +71,28 @@ def process_population(
     if pop_raster is None:
         nodes_gdf["pop_dens"] = np.nan  # type: ignore
     else:
-        with MemoryFile(pop_raster) as memfile:
-            with memfile.open() as dataset:
-                # rea
-                data = dataset.read(
-                    out_shape=(
-                        dataset.count,
-                        int(dataset.height * upscale_factor),
-                        int(dataset.width * upscale_factor),
-                    ),
-                    resampling=Resampling.bilinear,
+        with MemoryFile(pop_raster) as memfile, memfile.open() as dataset:
+            # rea
+            data = dataset.read(
+                out_shape=(
+                    dataset.count,
+                    int(dataset.height * upscale_factor),
+                    int(dataset.width * upscale_factor),
+                ),
+                resampling=Resampling.bilinear,
+            )
+            # Update the transform to reflect the new shape
+            old_trf = dataset.transform
+            new_trf = old_trf * old_trf.scale((dataset.width / data.shape[-1]), (dataset.height / data.shape[-2]))
+            for node_idx, node_row in tqdm(nodes_gdf.iterrows(), total=len(nodes_gdf)):  # type: ignore
+                pop_val = point_query(
+                    node_row["geom"],
+                    data,
+                    interpolate="nearest",
+                    affine=new_trf,
+                    nodata=np.nan,
                 )
-                # Update the transform to reflect the new shape
-                old_trf = dataset.transform
-                new_trf = old_trf * old_trf.scale((dataset.width / data.shape[-1]), (dataset.height / data.shape[-2]))
-                for node_idx, node_row in tqdm(nodes_gdf.iterrows(), total=len(nodes_gdf)):  # type: ignore
-                    pop_val = point_query(
-                        node_row["geom"],
-                        data,
-                        interpolate="nearest",
-                        affine=new_trf,
-                        nodata=np.nan,
-                    )
-                    nodes_gdf.loc[node_idx, "pop_dens"] = np.clip(pop_val, 0, np.inf)[0]  # type: ignore
+                nodes_gdf.loc[node_idx, "pop_dens"] = np.clip(pop_val, 0, np.inf)[0]  # type: ignore
     # keep only live
     nodes_gdf = nodes_gdf.loc[nodes_gdf.live]  # type: ignore
     nodes_gdf.to_postgis(  # type: ignore

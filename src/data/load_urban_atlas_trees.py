@@ -32,7 +32,7 @@ def load_tree_canopies(data_dir_path: str) -> None:
         """
     )[0][0]
     bounds_geom: geometry.Polygon = wkb.loads(bounds_wkb, hex=True)  # type: ignore
-    if not (isinstance(bounds_geom, geometry.Polygon) or isinstance(bounds_geom, geometry.MultiPolygon)):
+    if not (isinstance(bounds_geom, geometry.Polygon | geometry.MultiPolygon)):
         raise ValueError(
             f"Encountered {bounds_geom.type} instead of Polygon or MultiPolygon type for bounds."  # type: ignore
         )

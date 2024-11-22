@@ -79,13 +79,13 @@ def db_fetch(query: str, params: tuple[Any] | None = None) -> Any:
 def convert_ndarrays(obj: Any) -> Any:
     if isinstance(obj, np.ndarray):
         return convert_ndarrays(obj.tolist())
-    if isinstance(obj, (list, tuple)):
+    if isinstance(obj, list | tuple):
         return [convert_ndarrays(item) for item in obj]
     if isinstance(obj, dict):
         return {key: convert_ndarrays(value) for key, value in obj.items()}
     if obj is None or obj == "":
         return None
-    if isinstance(obj, (str, int, float)):
+    if isinstance(obj, str | int | float):
         return obj
     raise ValueError(f"Unhandled type when converting: {type(obj).__name__}")
 
@@ -141,9 +141,11 @@ def split_street_segment(
 def generate_graph(
     nodes_gdf: gpd.GeoDataFrame,
     edges_gdf: gpd.GeoDataFrame,
-    drop_road_types: list[str] = [],
+    drop_road_types: list[str] = None,
 ) -> nx.MultiGraph:
     """ """
+    if drop_road_types is None:
+        drop_road_types = []
     logger.info("Preparing GeoDataFrames")
     # create graph
     multigraph = nx.MultiGraph()
@@ -207,18 +209,16 @@ def generate_graph(
             for level_info in edges_data["level_rules"]:
                 levels.add(level_info["value"])
         names = []  # takes list form for nx
-        if edges_data["names"] is not None:
-            if "primary" in edges_data["names"]:
-                names.append(edges_data["names"]["primary"])
+        if edges_data["names"] is not None and "primary" in edges_data["names"]:
+            names.append(edges_data["names"]["primary"])
         routes = set([])
         if edges_data["routes"] is not None:
             for routes_info in edges_data["routes"]:
                 if "ref" in routes_info:
                     routes.add(routes_info["ref"])
         highways = []  # takes list form for nx
-        if road_class is not None:
-            if road_class not in ["unknown", "unclassified"]:
-                highways.append(road_class)
+        if road_class is not None and road_class not in ["unknown", "unclassified"]:
+            highways.append(road_class)
         # split segments and build
         street_segs = split_street_segment(edges_data.geom, connector_infos)
         for seg_geom, node_info_a, node_info_b in street_segs:

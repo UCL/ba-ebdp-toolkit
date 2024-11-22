@@ -138,39 +138,37 @@ def process_green(
                 logger.warning(f"Missing data for {data_key} in bounds FID {bounds_fid}")
                 continue
             logger.info("Burning shapes")
-            with MemoryFile() as memfile:
-                with memfile.open(
+            with MemoryFile() as memfile, memfile.open(
+                driver="GTiff",
+                height=num_rows,
+                width=num_cols,
+                count=1,
+                dtype=rasterio.uint8,
+                crs=nodes_gdf.crs,  # type: ignore
+                transform=transform,
+            ) as burn_rast:
+                shapes = ((geom, 1) for geom in data_gdf.geometry)
+                burned = rasterize(shapes=shapes, out_shape=(num_rows, num_cols), transform=transform)
+                burn_rast.write_band(1, burned)
+                logger.info("Convolving distances")
+                with MemoryFile() as memfile2, memfile2.open(
                     driver="GTiff",
                     height=num_rows,
                     width=num_cols,
                     count=1,
-                    dtype=rasterio.uint8,
+                    dtype=rasterio.uint32,
                     crs=nodes_gdf.crs,  # type: ignore
                     transform=transform,
-                ) as burn_rast:
-                    shapes = ((geom, 1) for geom in data_gdf.geometry)
-                    burned = rasterize(shapes=shapes, out_shape=(num_rows, num_cols), transform=transform)
-                    burn_rast.write_band(1, burned)
-                    logger.info("Convolving distances")
-                    with MemoryFile() as memfile2:
-                        with memfile2.open(
-                            driver="GTiff",
-                            height=num_rows,
-                            width=num_cols,
-                            count=1,
-                            dtype=rasterio.uint32,
-                            crs=nodes_gdf.crs,  # type: ignore
-                            transform=transform,
-                        ) as conv_rast:
-                            count_ones = scipy.ndimage.convolve(
-                                burned, kernel, mode="constant", cval=0, output=np.uint32
-                            )
-                            conv_rast.write_band(1, count_ones)
-                            logger.info("Sampling")
-                            for idx, row in nodes_gdf.iterrows():  # type: ignore
-                                for val in conv_rast.sample([(row.geom.x, row.geom.y)]):
-                                    # reset area to pixel size then take km2
-                                    nodes_gdf.at[idx, f"{data_key}_{dist}"] = (val[0] * pixel_size**2) / 1000**2
+                ) as conv_rast:
+                    count_ones = scipy.ndimage.convolve(
+                        burned, kernel, mode="constant", cval=0, output=np.uint32
+                    )
+                    conv_rast.write_band(1, count_ones)
+                    logger.info("Sampling")
+                    for idx, row in nodes_gdf.iterrows():  # type: ignore
+                        for val in conv_rast.sample([(row.geom.x, row.geom.y)]):
+                            # reset area to pixel size then take km2
+                            nodes_gdf.at[idx, f"{data_key}_{dist}"] = (val[0] * pixel_size**2) / 1000**2
     # keep only live
     nodes_gdf = nodes_gdf.loc[nodes_gdf.live]  # type: ignore
     nodes_gdf.to_postgis(  # type: ignore

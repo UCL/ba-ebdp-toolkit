@@ -63,4 +63,4 @@ def test_split_street_segments():
 
 
 def test_prepare_schema():
-    schema = tools.generate_overture_schema()
+    tools.generate_overture_schema()

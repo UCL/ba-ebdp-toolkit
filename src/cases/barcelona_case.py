@@ -313,7 +313,7 @@ plot_bbox: tuple[float, float, float, float] = centroid.buffer(plot_buffer).boun
 betas = rustalgos.betas_from_distances(distances)
 avg_dists = rustalgos.avg_distances_for_betas(betas)
 
-for d, b, avg_d in zip(distances, betas, avg_dists, strict=True):
+for d, _b, avg_d in zip(distances, betas, avg_dists, strict=True):
     fig, axes = plt.subplots(2, 2, figsize=(7, 8), dpi=200, facecolor=bg_colour)
     fig.suptitle(f"Gravity index: {d}m ({avg_d:.2f}m avg. toler.)", color=font_colour)
     plot.plot_scatter(
@@ -359,7 +359,7 @@ for d, b, avg_d in zip(distances, betas, avg_dists, strict=True):
     plt.tight_layout()
     plt.show()
 
-for d, b, avg_d in zip(distances, betas, avg_dists, strict=True):
+for d, _b, avg_d in zip(distances, betas, avg_dists, strict=True):
     fig, axes = plt.subplots(2, 2, figsize=(7, 8), dpi=200, facecolor=bg_colour)
     fig.suptitle(f"Dist. wtd. betw. ({avg_d:.2f}m avg. toler.)", color=font_colour)
     plot.plot_scatter(
@@ -411,7 +411,7 @@ for d, b, avg_d in zip(distances, betas, avg_dists, strict=True):
     plt.show()
 
 # %%
-for d, b, avg_d in zip(distances, betas, avg_dists, strict=True):
+for d, _b, avg_d in zip(distances, betas, avg_dists, strict=True):
     fig, axes = plt.subplots(2, 2, figsize=(7, 8), dpi=200, facecolor=bg_colour)
     fig.suptitle(f"Simplest path closeness centrality {d}m", color=font_colour)
     plot.plot_scatter(
@@ -457,7 +457,7 @@ for d, b, avg_d in zip(distances, betas, avg_dists, strict=True):
     plt.tight_layout()
     plt.show()
 
-for d, b, avg_d in zip(distances, betas, avg_dists, strict=True):
+for d, _b, avg_d in zip(distances, betas, avg_dists, strict=True):
     fig, axes = plt.subplots(2, 2, figsize=(7, 8), dpi=200, facecolor=bg_colour)
     fig.suptitle(f"Simplest path betweenness {d}m", color=font_colour)
     plot.plot_scatter(

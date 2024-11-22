@@ -33,29 +33,28 @@ def extract_boundary_polys(src_schema_name: str, bounds_raster_table_name: str) 
     eu_boundary = geometry.box(1431795, 2500000, 6637004, 4772012)
     # extract polygons from raster
     polys: list[geometry.Polygon] = []
-    with MemoryFile(raster_result) as memfile:
-        with memfile.open() as dataset:
-            rast_array = dataset.read(1)
-            for geom, value in shapes(rast_array, transform=dataset.transform):
-                # -21474836... represents no value
-                if value < 0:
-                    continue
-                # extract polygon features from raster blobs
-                poly = geometry.shape(geom)
-                # log if anything problematic found
-                if not isinstance(poly, geometry.Polygon):
-                    logger.warning(f"Discarding extracted geom of type {poly.type}")
-                    continue
-                # don't load if intersecting UK
-                if uk_boundary.contains(poly):
-                    continue
-                # don't load if outside EU
-                if not eu_boundary.contains(poly):
-                    continue
-                # buffer and reverse buffer to smooth edges
-                poly = poly.buffer(2000).buffer(-1000)
-                # agg
-                polys.append(poly)
+    with MemoryFile(raster_result) as memfile, memfile.open() as dataset:
+        rast_array = dataset.read(1)
+        for geom, value in shapes(rast_array, transform=dataset.transform):
+            # -21474836... represents no value
+            if value < 0:
+                continue
+            # extract polygon features from raster blobs
+            poly = geometry.shape(geom)
+            # log if anything problematic found
+            if not isinstance(poly, geometry.Polygon):
+                logger.warning(f"Discarding extracted geom of type {poly.type}")
+                continue
+            # don't load if intersecting UK
+            if uk_boundary.contains(poly):
+                continue
+            # don't load if outside EU
+            if not eu_boundary.contains(poly):
+                continue
+            # buffer and reverse buffer to smooth edges
+            poly = poly.buffer(2000).buffer(-1000)
+            # agg
+            polys.append(poly)
 
     # generate the gdf
     data = {"geom": polys}
