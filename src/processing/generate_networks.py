@@ -88,7 +88,7 @@ def process_network(
     if not (
         tools.check_table_exists("overture", "overture_node") and tools.check_table_exists("overture", "overture_edge")
     ):
-        raise IOError("The overture nodes and edges tables need to be created prior to proceeding.")
+        raise OSError("The overture nodes and edges tables need to be created prior to proceeding.")
     logger.info("Preparing raw networks")
     load_key = "raw_network"
     bounds_schema = "eu"

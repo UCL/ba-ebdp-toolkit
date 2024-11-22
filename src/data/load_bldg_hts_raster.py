@@ -112,9 +112,9 @@ if __name__ == "__main__":
         logger.info(f"Loading building heights data from path: {args.data_dir_path}")
         data_dir_path = Path(args.data_dir_path)
         if not data_dir_path.exists():
-            raise IOError("Input directory does not exist")
+            raise OSError("Input directory does not exist")
         if not data_dir_path.is_dir():
-            raise IOError("Expected input directory, not a file name")
+            raise OSError("Expected input directory, not a file name")
         load_bldg_hts(args.data_dir_path, args.bin_path)
     else:
         load_bldg_hts("./temp/Digital Height Model EU", "/Applications/Postgres.app/Contents/Versions/16/bin/")

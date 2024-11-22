@@ -10,8 +10,7 @@ import os
 import traceback
 
 import geopandas as gpd
-from cityseer.tools import graphs, io
-from geoalchemy2 import Geometry
+from cityseer.tools import io
 
 from src import tools
 
@@ -93,7 +92,7 @@ def process_network(
     if not (
         tools.check_table_exists("overture", "overture_node") and tools.check_table_exists("overture", "overture_edge")
     ):
-        raise IOError("The overture nodes and edges tables need to be created prior to proceeding.")
+        raise OSError("The overture nodes and edges tables need to be created prior to proceeding.")
     logger.info("Preparing cleaned networks")
     load_key = "clean_network"
     bounds_schema = "eu"

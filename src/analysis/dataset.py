@@ -9,17 +9,11 @@ import os
 from pathlib import Path
 
 import geopandas as gpd
-import matplotlib.pyplot as plt
-import numpy as np
-import pandas as pd
-import seaborn as sns
-from sklearn.decomposition import PCA
-from sklearn.preprocessing import StandardScaler
 
 if str(Path.cwd()).endswith("analysis"):
     os.chdir("../..")
 if not str(Path.cwd()).endswith("toolkit"):
-    raise IOError(f"Check your working directory, currently: {print(Path.cwd())}")
+    raise OSError(f"Check your working directory, currently: {print(Path.cwd())}")
 
 from src import tools
 

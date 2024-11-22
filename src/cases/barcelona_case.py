@@ -17,7 +17,7 @@ def nx_from_barcelona_gpkg(
     data_path: Path,
 ) -> nx.MultiGraph:
     """ """
-    print(f"Loading Barcelona network")
+    print("Loading Barcelona network")
     # create a networkX multigraph
     g_multi = nx.MultiGraph()
     # load
@@ -172,7 +172,7 @@ plot.plot_nx(
     y_lim=(s, n),
     ax=axes[0],
 )
-axes[0].set_title(f"Official network graph", fontsize=font_size, color=font_colour)
+axes[0].set_title("Official network graph", fontsize=font_size, color=font_colour)
 axes[0].set_aspect("equal")
 plot.plot_nx(
     barc_netw_osm,
@@ -184,7 +184,7 @@ plot.plot_nx(
     y_lim=(s, n),
     ax=axes[1],
 )
-axes[1].set_title(f"OSM network", fontsize=font_size, color=font_colour)
+axes[1].set_title("OSM network", fontsize=font_size, color=font_colour)
 axes[1].set_aspect("equal")
 plot.plot_nx(
     barc_netw_osm_cleaned,
@@ -196,7 +196,7 @@ plot.plot_nx(
     y_lim=(s, n),
     ax=axes[2],
 )
-axes[2].set_title(f"OSM network algo. cleaned", fontsize=font_size, color=font_colour)
+axes[2].set_title("OSM network algo. cleaned", fontsize=font_size, color=font_colour)
 axes[2].set_aspect("equal")
 plt.tight_layout()
 plt.gcf().set_facecolor(bg_colour)
@@ -313,7 +313,7 @@ plot_bbox: tuple[float, float, float, float] = centroid.buffer(plot_buffer).boun
 betas = rustalgos.betas_from_distances(distances)
 avg_dists = rustalgos.avg_distances_for_betas(betas)
 
-for d, b, avg_d in zip(distances, betas, avg_dists):
+for d, b, avg_d in zip(distances, betas, avg_dists, strict=True):
     fig, axes = plt.subplots(2, 2, figsize=(7, 8), dpi=200, facecolor=bg_colour)
     fig.suptitle(f"Gravity index: {d}m ({avg_d:.2f}m avg. toler.)", color=font_colour)
     plot.plot_scatter(
@@ -325,7 +325,7 @@ for d, b, avg_d in zip(distances, betas, avg_dists):
         cmap_key="coolwarm",
         face_colour=bg_colour,
     )
-    axes[0][0].set_title(f"Official network graph", fontsize=font_size, color=font_colour)
+    axes[0][0].set_title("Official network graph", fontsize=font_size, color=font_colour)
     plot.plot_scatter(
         axes[0][1],
         network_structure_osm.node_xs,
@@ -335,7 +335,7 @@ for d, b, avg_d in zip(distances, betas, avg_dists):
         cmap_key="coolwarm",
         face_colour=bg_colour,
     )
-    axes[0][1].set_title(f"OSM network", fontsize=font_size, color=font_colour)
+    axes[0][1].set_title("OSM network", fontsize=font_size, color=font_colour)
     plot.plot_scatter(
         axes[1][0],
         network_structure_osm_cleaned.node_xs,
@@ -345,7 +345,7 @@ for d, b, avg_d in zip(distances, betas, avg_dists):
         cmap_key="coolwarm",
         face_colour=bg_colour,
     )
-    axes[1][0].set_title(f"OSM algo cleaned", fontsize=font_size, color=font_colour)
+    axes[1][0].set_title("OSM algo cleaned", fontsize=font_size, color=font_colour)
     plot.plot_scatter(
         axes[1][1],
         network_structure_osm_wt.node_xs,
@@ -355,11 +355,11 @@ for d, b, avg_d in zip(distances, betas, avg_dists):
         cmap_key="coolwarm",
         face_colour=bg_colour,
     )
-    axes[1][1].set_title(f"OSM weighted", fontsize=font_size, color=font_colour)
+    axes[1][1].set_title("OSM weighted", fontsize=font_size, color=font_colour)
     plt.tight_layout()
     plt.show()
 
-for d, b, avg_d in zip(distances, betas, avg_dists):
+for d, b, avg_d in zip(distances, betas, avg_dists, strict=True):
     fig, axes = plt.subplots(2, 2, figsize=(7, 8), dpi=200, facecolor=bg_colour)
     fig.suptitle(f"Dist. wtd. betw. ({avg_d:.2f}m avg. toler.)", color=font_colour)
     plot.plot_scatter(
@@ -372,7 +372,7 @@ for d, b, avg_d in zip(distances, betas, avg_dists):
         s_max=2,
         face_colour=bg_colour,
     )
-    axes[0][0].set_title(f"Official network graph", fontsize=font_size, color=font_colour)
+    axes[0][0].set_title("Official network graph", fontsize=font_size, color=font_colour)
     plot.plot_scatter(
         axes[0][1],
         network_structure_osm.node_xs,
@@ -383,7 +383,7 @@ for d, b, avg_d in zip(distances, betas, avg_dists):
         s_max=2,
         face_colour=bg_colour,
     )
-    axes[0][1].set_title(f"OSM network", fontsize=font_size, color=font_colour)
+    axes[0][1].set_title("OSM network", fontsize=font_size, color=font_colour)
     plot.plot_scatter(
         axes[1][0],
         network_structure_osm_cleaned.node_xs,
@@ -394,7 +394,7 @@ for d, b, avg_d in zip(distances, betas, avg_dists):
         s_max=2,
         face_colour=bg_colour,
     )
-    axes[1][0].set_title(f"OSM algo cleaned", fontsize=font_size, color=font_colour)
+    axes[1][0].set_title("OSM algo cleaned", fontsize=font_size, color=font_colour)
     plot.plot_scatter(
         axes[1][1],
         network_structure_osm_wt.node_xs,
@@ -405,13 +405,13 @@ for d, b, avg_d in zip(distances, betas, avg_dists):
         s_max=2,
         face_colour=bg_colour,
     )
-    axes[1][1].set_title(f"OSM weighted", fontsize=font_size, color=font_colour)
+    axes[1][1].set_title("OSM weighted", fontsize=font_size, color=font_colour)
 
     plt.tight_layout()
     plt.show()
 
 # %%
-for d, b, avg_d in zip(distances, betas, avg_dists):
+for d, b, avg_d in zip(distances, betas, avg_dists, strict=True):
     fig, axes = plt.subplots(2, 2, figsize=(7, 8), dpi=200, facecolor=bg_colour)
     fig.suptitle(f"Simplest path closeness centrality {d}m", color=font_colour)
     plot.plot_scatter(
@@ -423,7 +423,7 @@ for d, b, avg_d in zip(distances, betas, avg_dists):
         cmap_key="coolwarm",
         face_colour=bg_colour,
     )
-    axes[0][0].set_title(f"Official network graph", fontsize=font_size, color=font_colour)
+    axes[0][0].set_title("Official network graph", fontsize=font_size, color=font_colour)
     plot.plot_scatter(
         axes[0][1],
         network_structure_osm.node_xs,
@@ -433,7 +433,7 @@ for d, b, avg_d in zip(distances, betas, avg_dists):
         cmap_key="coolwarm",
         face_colour=bg_colour,
     )
-    axes[0][1].set_title(f"OSM network", fontsize=font_size, color=font_colour)
+    axes[0][1].set_title("OSM network", fontsize=font_size, color=font_colour)
     plot.plot_scatter(
         axes[1][0],
         network_structure_osm_cleaned.node_xs,
@@ -443,7 +443,7 @@ for d, b, avg_d in zip(distances, betas, avg_dists):
         cmap_key="coolwarm",
         face_colour=bg_colour,
     )
-    axes[1][0].set_title(f"OSM algo cleaned", fontsize=font_size, color=font_colour)
+    axes[1][0].set_title("OSM algo cleaned", fontsize=font_size, color=font_colour)
     plot.plot_scatter(
         axes[1][1],
         network_structure_osm_wt.node_xs,
@@ -453,11 +453,11 @@ for d, b, avg_d in zip(distances, betas, avg_dists):
         cmap_key="coolwarm",
         face_colour=bg_colour,
     )
-    axes[1][1].set_title(f"OSM weighted", fontsize=font_size, color=font_colour)
+    axes[1][1].set_title("OSM weighted", fontsize=font_size, color=font_colour)
     plt.tight_layout()
     plt.show()
 
-for d, b, avg_d in zip(distances, betas, avg_dists):
+for d, b, avg_d in zip(distances, betas, avg_dists, strict=True):
     fig, axes = plt.subplots(2, 2, figsize=(7, 8), dpi=200, facecolor=bg_colour)
     fig.suptitle(f"Simplest path betweenness {d}m", color=font_colour)
     plot.plot_scatter(
@@ -470,7 +470,7 @@ for d, b, avg_d in zip(distances, betas, avg_dists):
         s_max=2,
         face_colour=bg_colour,
     )
-    axes[0][0].set_title(f"Official network graph", fontsize=font_size, color=font_colour)
+    axes[0][0].set_title("Official network graph", fontsize=font_size, color=font_colour)
     plot.plot_scatter(
         axes[0][1],
         network_structure_osm.node_xs,
@@ -481,7 +481,7 @@ for d, b, avg_d in zip(distances, betas, avg_dists):
         s_max=2,
         face_colour=bg_colour,
     )
-    axes[0][1].set_title(f"OSM network", fontsize=font_size, color=font_colour)
+    axes[0][1].set_title("OSM network", fontsize=font_size, color=font_colour)
     plot.plot_scatter(
         axes[1][0],
         network_structure_osm_cleaned.node_xs,
@@ -492,7 +492,7 @@ for d, b, avg_d in zip(distances, betas, avg_dists):
         s_max=2,
         face_colour=bg_colour,
     )
-    axes[1][0].set_title(f"OSM algo cleaned", fontsize=font_size, color=font_colour)
+    axes[1][0].set_title("OSM algo cleaned", fontsize=font_size, color=font_colour)
     plot.plot_scatter(
         axes[1][1],
         network_structure_osm_wt.node_xs,
@@ -503,6 +503,6 @@ for d, b, avg_d in zip(distances, betas, avg_dists):
         s_max=2,
         face_colour=bg_colour,
     )
-    axes[1][1].set_title(f"OSM weighted", fontsize=font_size, color=font_colour)
+    axes[1][1].set_title("OSM weighted", fontsize=font_size, color=font_colour)
     plt.tight_layout()
     plt.show()

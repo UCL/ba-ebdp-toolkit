@@ -118,7 +118,7 @@ avg_dists = rustalgos.avg_distances_for_betas(betas)
 plot_bbox = poly_utm.centroid.buffer(1500).bounds
 font_size = 7
 font_color = "lightgrey"
-for d, b, avg_d in zip(distances, betas, avg_dists):
+for d, b, avg_d in zip(distances, betas, avg_dists, strict=True):
     print(
         f"""
     "Gravity" index (spatial impedance weighted closeness-like centrality):
@@ -162,7 +162,7 @@ for d, b, avg_d in zip(distances, betas, avg_dists):
     plt.tight_layout()
     plt.show()
 
-for d, b, avg_d in zip(distances, betas, avg_dists):
+for d, b, avg_d in zip(distances, betas, avg_dists, strict=True):
     print(
         f"""
     Spatial impedance weighted betweenness centrality:
@@ -212,7 +212,7 @@ for d, b, avg_d in zip(distances, betas, avg_dists):
     plt.show()
 
 # %%
-for d, b, avg_d in zip(distances, betas, avg_dists):
+for d, b, avg_d in zip(distances, betas, avg_dists, strict=True):
     print(
         f"""
     "Simplest path harmonic closeness centrality
@@ -255,7 +255,7 @@ for d, b, avg_d in zip(distances, betas, avg_dists):
     plt.tight_layout()
     plt.show()
 
-for d, b, avg_d in zip(distances, betas, avg_dists):
+for d, b, avg_d in zip(distances, betas, avg_dists, strict=True):
     print(
         f"""
     Simplest path betweenness centrality:

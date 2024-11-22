@@ -72,7 +72,7 @@ def process_green(
         geom_col="geom",
     )
     if len(nodes_gdf) == 0:  # type: ignore
-        raise IOError(f"No network data for bounds FID: {bounds_fid}")
+        raise OSError(f"No network data for bounds FID: {bounds_fid}")
     # track bounds
     nodes_gdf.loc[:, "bounds_key"] = "bounds"  # type: ignore
     nodes_gdf.loc[:, "bounds_fid"] = bounds_fid  # type: ignore
@@ -137,7 +137,7 @@ def process_green(
                 nodes_gdf[f"{data_key}_{dist}"] = 0  # type ignore
                 logger.warning(f"Missing data for {data_key} in bounds FID {bounds_fid}")
                 continue
-            logger.info(f"Burning shapes")
+            logger.info("Burning shapes")
             with MemoryFile() as memfile:
                 with memfile.open(
                     driver="GTiff",
@@ -191,7 +191,7 @@ def compute_green_metrics(
         tools.check_table_exists("overture", "network_nodes_clean")
         and tools.check_table_exists("overture", "network_edges_clean")
     ):
-        raise IOError("The cleaned network nodes and edges tables need to be created prior to proceeding.")
+        raise OSError("The cleaned network nodes and edges tables need to be created prior to proceeding.")
     logger.info("Computing green metrics")
     tools.prepare_schema("metrics")
     load_key = "metrics_green"

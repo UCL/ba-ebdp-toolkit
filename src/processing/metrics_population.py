@@ -43,7 +43,7 @@ def process_population(
         geom_col="geom",
     )
     if len(nodes_gdf) == 0:  # type: ignore
-        raise IOError(f"No network data for bounds FID: {bounds_fid}")
+        raise OSError(f"No network data for bounds FID: {bounds_fid}")
     # track bounds
     nodes_gdf.loc[:, "bounds_key"] = "bounds"  # type: ignore
     nodes_gdf.loc[:, "bounds_fid"] = bounds_fid  # type: ignore
@@ -114,7 +114,7 @@ def compute_population_metrics(
         tools.check_table_exists("overture", "network_nodes_clean")
         and tools.check_table_exists("overture", "network_edges_clean")
     ):
-        raise IOError("The cleaned network nodes and edges tables need to be created prior to proceeding.")
+        raise OSError("The cleaned network nodes and edges tables need to be created prior to proceeding.")
     logger.info("Computing population metrics")
     tools.prepare_schema("metrics")
     load_key = "metrics_population"

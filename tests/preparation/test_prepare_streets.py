@@ -1,5 +1,4 @@
 # pyright: basic
-import pytest
 
 from src.preparation import prepare_streets
 

@@ -151,7 +151,7 @@ if __name__ == "__main__":
     Examples are run from the project folder (the folder containing src)
     python -m src.data.generate_boundary_polys eu hdens_clusters bounds
     """
-    logger.info(f"Converting raster boundaries to polygons.")
+    logger.info("Converting raster boundaries to polygons.")
     if True:
         parser = argparse.ArgumentParser(description="Load building heights raster data.")
         parser.add_argument("src_schema_name", type=str, help="Schema name.")

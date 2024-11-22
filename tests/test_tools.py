@@ -1,5 +1,4 @@
 # pyright: basic
-import pytest
 from shapely import geometry
 
 from src import tools

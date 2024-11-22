@@ -7,7 +7,6 @@ from __future__ import annotations
 import argparse
 
 import geopandas as gpd
-from cityseer.tools import io
 from tqdm import tqdm
 
 from src import tools
@@ -120,7 +119,7 @@ def compute_green_metrics(
         tools.check_table_exists("overture", "network_nodes_clean")
         and tools.check_table_exists("overture", "network_edges_clean")
     ):
-        raise IOError("The cleaned network nodes and edges tables need to be created prior to proceeding.")
+        raise OSError("The cleaned network nodes and edges tables need to be created prior to proceeding.")
     logger.info("Computing green metrics")
     tools.prepare_schema("metrics")
     load_key = "metrics_green"

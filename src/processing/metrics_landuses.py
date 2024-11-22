@@ -7,7 +7,6 @@ import argparse
 import geopandas as gpd
 from cityseer.metrics import layers
 from cityseer.tools import io
-from geoalchemy2 import Geometry
 from tqdm import tqdm
 
 from src import tools
@@ -28,7 +27,7 @@ def process_landuses(
     engine = tools.get_sqlalchemy_engine()
     multigraph = tools.load_bounds_fid_network_from_db(engine, bounds_fid, buffer_col=bounds_geom_col)
     if len(multigraph) == 0:
-        raise IOError(f"No network data for bounds FID: {bounds_fid}")
+        raise OSError(f"No network data for bounds FID: {bounds_fid}")
     nodes_gdf, _edges_gdf, network_structure = io.network_structure_from_nx(multigraph, crs=3035)
     # track bounds
     nodes_gdf.loc[:, "bounds_key"] = "bounds"
@@ -89,7 +88,7 @@ def compute_landuse_metrics(
         tools.check_table_exists("overture", "network_nodes_clean")
         and tools.check_table_exists("overture", "network_edges_clean")
     ):
-        raise IOError("The cleaned network nodes and edges tables need to be created prior to proceeding.")
+        raise OSError("The cleaned network nodes and edges tables need to be created prior to proceeding.")
     logger.info("Computing landuse metrics")
     tools.prepare_schema("metrics")
     load_key = "metrics_landuses"

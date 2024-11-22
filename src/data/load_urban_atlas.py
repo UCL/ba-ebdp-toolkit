@@ -22,7 +22,7 @@ def load_urban_blocks(data_dir_path: str) -> None:
     """ """
     # check that the bounds table exists
     if not tools.check_table_exists("eu", "bounds"):
-        raise IOError("The eu.bounds table does not exist; this needs to be created prior to proceeding.")
+        raise OSError("The eu.bounds table does not exist; this needs to be created prior to proceeding.")
     # drop existing
     tools.drop_table("eu", "blocks")
     # get bounds poly
@@ -120,9 +120,9 @@ if __name__ == "__main__":
         logger.info(f"Loading urban atlas blocks data from path: {args.data_dir_path}")
         data_dir_path = Path(args.data_dir_path)
         if not data_dir_path.exists():
-            raise IOError("Input directory does not exist")
+            raise OSError("Input directory does not exist")
         if not data_dir_path.is_dir():
-            raise IOError("Expected input directory, not a file name")
+            raise OSError("Expected input directory, not a file name")
         load_urban_blocks(args.data_dir_path)
     else:
         load_urban_blocks("./temp/urban atlas")

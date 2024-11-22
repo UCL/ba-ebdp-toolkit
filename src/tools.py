@@ -9,8 +9,9 @@ import os
 import random
 import time
 import warnings
+from collections.abc import Callable
 from pathlib import Path
-from typing import Any, Callable, cast
+from typing import Any, cast
 
 import geopandas as gpd
 import networkx as nx
@@ -290,7 +291,7 @@ def generate_overture_schema() -> dict[str, list[str]]:
                 if "Overture Taxonomy" in line:
                     continue
                 splits = line.split(";")
-                if not "[" in splits[1]:
+                if "[" not in splits[1]:
                     logger.info(f"Skipping line {line}")
                     continue
                 cats = splits[1].strip("\n[]")
@@ -484,7 +485,7 @@ def process_func_with_bound_tracking(
     time.sleep(random.uniform(0.5, 1.0))
     # check if bounds table exists
     if not check_table_exists(bounds_schema, bounds_table):
-        raise IOError(f"Cannot proceed because the {bounds_schema}.{bounds_table} table does not exist.")
+        raise OSError(f"Cannot proceed because the {bounds_schema}.{bounds_table} table does not exist.")
     # check that tracking table is initiated
     init_tracking_table(load_key, bounds_schema, bounds_table, bounds_fid_col, bounds_geom_col)
     # check if loaded

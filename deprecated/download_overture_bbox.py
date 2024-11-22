@@ -32,9 +32,9 @@ if __name__ == "__main__":
     logger.info(f"Loading data for bbox: {args.min_x}, {args.min_y}, {args.max_x}, {args.max_y}")
     out_path = Path(args.out_path)
     if not out_path.exists():
-        raise IOError("Output path does not exist")
+        raise OSError("Output path does not exist")
     if not out_path.is_dir():
-        raise IOError("Expected output directory, not a file name")
+        raise OSError("Expected output directory, not a file name")
     logger.info(f'Writing output files to "{out_path.resolve()}" using prefix of "{args.file_prefix}"')
     # run queries
     # space the threads starts otherwise they trip over each other with DuckDB in memory database initialisation
