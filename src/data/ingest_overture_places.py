@@ -1,4 +1,7 @@
-""" """
+"""
+See src/raw_landuse_schema.csv
+Taken from https://github.com/OvertureMaps/schema/blob/0f9fdbcd88e7c0fc08e9c8c68d32cb334dd1d450/docs/schema/concepts/by-theme/places/overture_categories.csv#L16
+"""
 
 import argparse
 from pathlib import Path
@@ -149,7 +152,7 @@ def load_overture_places(
 if __name__ == "__main__":
     """
     Examples are run from the project folder (the folder containing src)
-    python -m src.data.ingest_overture_places 'temp/eu_places.geoparquet'
+    python -m src.data.ingest_overture_places 'temp/eu-place.parquet'
     """
     if True:
         parser = argparse.ArgumentParser(description="Load overture places geoparquet file to DB.")
@@ -166,6 +169,6 @@ if __name__ == "__main__":
         )
     else:
         load_overture_places(
-            "temp/eu-place.geoparquet",
+            "temp/eu-place.parquet",
             drop=False,
         )

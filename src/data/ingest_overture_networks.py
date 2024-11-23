@@ -44,7 +44,7 @@ def process_extent_network(
             "sources": JSON,
         },
     )
-    # cleanup edges
+    # cleanup nodes
     tools.db_execute(
         f"""
         DELETE FROM {target_schema}.{target_nodes_table} n
@@ -65,16 +65,22 @@ def process_extent_network(
     # convert other data columns to JSON
     for col in [
         "sources",
+        "subtype",
+        "class",
         "names",
-        "connector_ids",
+        "connectors",
         "routes",
+        "subclass",
+        "subclass_rules",
         "access_restrictions",
         "level_rules",
+        "destinations",
         "prohibited_transitions",
         "road_surface",
         "road_flags",
         "speed_limits",
         "width_rules",
+        "bounds_key",
     ]:
         edges_gdf[col] = edges_gdf[col].apply(tools.col_to_json).astype("str")  # type: ignore
     edges_gdf.to_crs(3035).to_postgis(  # type: ignore
@@ -87,7 +93,7 @@ def process_extent_network(
         dtype={
             "sources": JSON,
             "names": JSON,
-            "connector_ids": JSON,
+            "connectors": JSON,
             "routes": JSON,
             "access_restrictions": JSON,
             "level_rules": JSON,
@@ -158,7 +164,7 @@ def load_overture_networks(
 if __name__ == "__main__":
     """
     Examples are run from the project folder (the folder containing src)
-    python -m src.data.ingest_overture_networks 'temp/eu_nodes.geoparquet' 'temp/eu_edges.geoparquet'
+    python -m src.data.ingest_overture_networks 'temp/eu-connector.parquet' 'temp/eu-segment.parquet'
     """
     if True:
         parser = argparse.ArgumentParser(description="Load overture nodes and edges geoparquet file to DB.")
@@ -181,7 +187,7 @@ if __name__ == "__main__":
         )
     else:
         load_overture_networks(
-            "temp/eu-connector.geoparquet",
-            "temp/eu-segment.geoparquet",
+            "temp/eu-connector.parquet",
+            "temp/eu-segment.parquet",
             drop=False,
         )

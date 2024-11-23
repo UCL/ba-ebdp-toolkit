@@ -98,7 +98,7 @@ def load_overture_buildings(
 if __name__ == "__main__":
     """
     Examples are run from the project folder (the folder containing src)
-    python -m src.data.ingest_overture_buildings 'temp/eu_buildings.geoparquet'
+    python -m src.data.ingest_overture_buildings 'temp/eu_buildings.parquet'
     """
     if True:
         parser = argparse.ArgumentParser(description="Load overture buildings geoparquet file to DB.")
@@ -115,6 +115,6 @@ if __name__ == "__main__":
         )
     else:
         load_overture_buildings(
-            "temp/eu-building.geoparquet",
+            "temp/eu-building.parquet",
             drop=False,
         )

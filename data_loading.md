@@ -29,7 +29,7 @@ CREATE SCHEMA IF NOT EXISTS eu;
 
 ## Boundaries
 
-Boundaries are extracted from the [2021 Urban Centres / High Density Clusters](https://ec.europa.eu/eurostat/web/gisco/geodata/population-distribution/clusters) dataset. This is 1x1km raster based urban clustering dataset, with high density clusters [described as](https://ec.europa.eu/eurostat/statistics-explained/index.php?title=Territorial_typologies#Typologies) contiguous 1km2 cells with at least 1,500 residents per km2 and consisting of cumulative urban clusters with at least 50,000 people.
+Boundaries are extracted from the [2021 Urban Centres / High Density Clusters](https://ec.europa.eu/eurostat/web/gisco/geodata/population-distribution/clusters) dataset. This is 1x1km raster with high density clusters [described as](https://ec.europa.eu/eurostat/statistics-explained/index.php?title=Territorial_typologies#Typologies) contiguous 1km2 cells with at least 1,500 residents per km2 and consisting of cumulative urban clusters with at least 50,000 people.
 
 - Download the dataset from the above link.
 - From the terminal, prepare and upload to PostGIS, substituting the database parameters as required:
@@ -80,7 +80,7 @@ python -m src.data.load_urban_atlas_trees "./temp/urban atlas trees"
 
 ## Downloading Overture data
 
-Overture Maps can now be downloaded with the [`overturemaps-py`](https://github.com/OvertureMaps/overturemaps-py) utility. This can take several hours for the larger datasets (i.e. buildings).
+Overture Maps can now be downloaded with the [`overturemaps`](https://github.com/OvertureMaps/overturemaps-py) utility.
 
 Extract the extents for the bounds 10km layer:
 
@@ -91,7 +91,7 @@ FROM eu.unioned_bounds_10000
 ```
 
 ```bash
-# run each of these in a separate terminal window for quicker performance
+# optionally run each of these in a separate terminal window for quicker performance
 # activate local venv if not already active
 # source .venv/bin/activate
 overturemaps download --bbox=-9.577981860692864,34.55122224013552,33.76860850857635,65.15090582587982 -f geoparquet --type=place -o temp/eu-place.parquet
@@ -102,10 +102,10 @@ overturemaps download --bbox=-9.577981860692864,34.55122224013552,33.76860850857
 
 The download sizes for the EU are:
 
-- Places dataset: 2.24GB
-- Connectors dataset: 7.18GB
+- Places dataset: 2GB
+- Connectors dataset: 7GB
 - Segments dataset: 22GB
-- Buildings dataset: 58GB
+- Buildings dataset: 48GB
 
 ## Ingesting Overture data
 
@@ -114,19 +114,19 @@ Upload overture network data (nodes and edges) using the `ingest_networks.py` sc
 Segments:
 
 ```bash
-python -m src.data.ingest_overture_networks 'temp/eu-connectors.parquet' 'temp/eu-segments.parquet'
+python -m src.data.ingest_overture_networks 'temp/eu-connector.parquet' 'temp/eu-segment.parquet'
 ```
 
 Places:
 
 ```bash
-python -m src.data.ingest_overture_places 'temp/eu-places.parquet'
+python -m src.data.ingest_overture_places 'temp/eu-place.parquet'
 ```
 
 Buildings:
 
 ```bash
-python -m src.data.ingest_overture_buildings 'temp/eu-buildings.parquet'
+python -m src.data.ingest_overture_buildings 'temp/eu-building.parquet'
 ```
 
 ## Network preparation and cleaning
@@ -161,8 +161,6 @@ Building and block morphologies:
 
 `python -m src.processing.metrics_morphology all`
 
-## Pending
-
 ### Building Heights
 
 [Digital Height Model](https://land.copernicus.eu/local/urban-atlas/building-height-2012) (~ 1GB raster).
@@ -173,35 +171,39 @@ Building and block morphologies:
 python -m src.data.load_bldg_hts_raster "./temp/Digital height Model EU" --bin_path /Applications/Postgres.app/Contents/Versions/15/bin/
 ```
 
-Possible SQL strategy:
+Set building heights via SQL:
 
 ```sql
--- uses overture buildings table directly
-ALTER TABLE {bldg_hts_table_name}
-    ADD COLUMN max_rast_ht real;
-WITH ClippedRasters AS (
-    SELECT
-        p.fid AS region_fid,
-        ST_Clip(r.rast, ST_Transform(p.geom, 3035)) AS clipped_rast
-    FROM
-        {input_rast_bldg_hts_table} r
-    JOIN {bldg_hts_table_name} p ON ST_Intersects(ST_Transform(p.geom, 3035), r.rast)
-), RasterValues AS (
-    SELECT
-        region_fid,
-        unnest((ST_DumpValues(clipped_rast)).valarray) as un
-    FROM
-        ClippedRasters
-), MaxRasterValues AS (
-    SELECT
-        region_fid,
-        MAX(un) as max_val
-    FROM RasterValues
-    WHERE un IS NOT NULL
-    GROUP BY region_fid
+ALTER TABLE overture.overture_buildings ADD COLUMN rast_ht real;
+
+-- Update rast_ht with average raster value where raster intersects building geometry
+UPDATE overture.overture_buildings p
+SET rast_ht = (
+    -- Average value of raster where it intersects building
+    SELECT AVG(ST_Value(r.rast, ST_Intersection(r.rast, p.geom)))
+    FROM eu.bldg_hts r
+    WHERE ST_Intersects(r.rast, p.geom)
 )
-UPDATE {bldg_hts_table_name} ob
-    SET max_rast_ht = mv.max_val
-    FROM MaxRasterValues mv
-    WHERE mv.region_fid = ob.fid;
+WHERE EXISTS (
+    SELECT 1 FROM eu.bldg_hts r
+    WHERE ST_Intersects(r.rast, p.geom)
+);
+
+-- Step 1: Find the nearest building with a non-NULL rast_ht for each building with NULL rast_ht
+WITH nearest_building AS (
+    SELECT
+        p.fid AS target_fid,  -- Target building (with NULL rast_ht)
+        nb.fid AS nearest_fid,  -- Nearest adjacent building
+        nb.rast_ht AS nearest_rast_ht
+    FROM overture.overture_buildings p
+    JOIN overture.overture_buildings nb ON nb.rast_ht IS NOT NULL  -- Only consider buildings with valid rast_ht
+    WHERE p.rast_ht IS NULL  -- Only update buildings where rast_ht is NULL
+    ORDER BY ST_Distance(p.geom, nb.geom)  -- Order by distance to find the nearest building
+    LIMIT 1  -- Only pick the closest building
+)
+-- Step 2: Update rast_ht for the buildings with NULL rast_ht based on the nearest building's rast_ht
+UPDATE overture.overture_buildings p
+SET rast_ht = nb.nearest_rast_ht
+FROM nearest_building nb
+WHERE p.fid = nb.target_fid;
 ```
