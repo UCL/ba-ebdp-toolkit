@@ -78,55 +78,26 @@ python -m src.data.load_urban_atlas_blocks "./temp/urban atlas"
 python -m src.data.load_urban_atlas_trees "./temp/urban atlas trees"
 ```
 
-## Downloading Overture data
-
-Overture Maps can now be downloaded with the [`overturemaps`](https://github.com/OvertureMaps/overturemaps-py) utility.
-
-Extract the extents for the bounds 10km layer:
-
-```sql
-SELECT ST_Extent(ST_Transform(geom, 4326)) AS bounds
-FROM eu.unioned_bounds_10000
--- BOX(-9.577981860692864 34.55122224013552,33.76860850857635 65.15090582587982)
-```
-
-```bash
-# optionally run each of these in a separate terminal window for quicker performance
-# activate local venv if not already active
-# source .venv/bin/activate
-overturemaps download --bbox=-9.577981860692864,34.55122224013552,33.76860850857635,65.15090582587982 -f geoparquet --type=place -o temp/eu-place.parquet
-overturemaps download --bbox=-9.577981860692864,34.55122224013552,33.76860850857635,65.15090582587982 -f geoparquet --type=connector -o temp/eu-connector.parquet
-overturemaps download --bbox=-9.577981860692864,34.55122224013552,33.76860850857635,65.15090582587982 -f geoparquet --type=segment -o temp/eu-segment.parquet
-overturemaps download --bbox=-9.577981860692864,34.55122224013552,33.76860850857635,65.15090582587982 -f geoparquet --type=building -o temp/eu-building.parquet
-```
-
-The download sizes for the EU are:
-
-- Places dataset: 2GB
-- Connectors dataset: 7GB
-- Segments dataset: 22GB
-- Buildings dataset: 48GB
-
 ## Ingesting Overture data
 
-Upload overture network data (nodes and edges) using the `ingest_networks.py` script. Pass the `--drop` flag to drop and therefore replace existing tables. The loading scripts will otherwise track which boundary extents are loaded and will resume if interrupted. The tables will be uploaded to the `overture` schema.
+Upload overture data. Pass the `--drop` flag to drop and therefore replace existing tables. The loading scripts will otherwise track which boundary extents are loaded and will resume if interrupted. The tables will be uploaded to the `overture` schema.
 
-Segments:
+Network:
 
 ```bash
-python -m src.data.ingest_overture_networks 'temp/eu-connector.parquet' 'temp/eu-segment.parquet'
+python -m src.data.ingest_overture_networks
 ```
 
 Places:
 
 ```bash
-python -m src.data.ingest_overture_places 'temp/eu-place.parquet'
+python -m src.data.ingest_overture_places
 ```
 
 Buildings:
 
 ```bash
-python -m src.data.ingest_overture_buildings 'temp/eu-building.parquet'
+python -m src.data.ingest_overture_buildings
 ```
 
 ## Network preparation and cleaning

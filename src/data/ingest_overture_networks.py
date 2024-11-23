@@ -1,8 +1,8 @@
 """ """
 
 import argparse
-from pathlib import Path
 
+from overturemaps import core
 from shapely import geometry
 from sqlalchemy.dialects.postgresql import JSON
 from tqdm import tqdm
@@ -17,8 +17,6 @@ def process_extent_network(
     bounds_geom: geometry.Polygon,
     bounds_schema: str,
     bounds_table: str,
-    overture_nodes_path: str | Path,
-    overture_edges_path: str | Path,
     target_schema: str,
     target_nodes_table: str,
     target_edges_table: str,
@@ -26,14 +24,16 @@ def process_extent_network(
     """ """
     engine = tools.get_sqlalchemy_engine()
     # NODES
-    nodes_gdf = tools.snip_overture_by_extents(overture_nodes_path, bounds_geom)
+    nodes_gdf = core.geodataframe("connector", bounds_geom.bounds)  # type:ignore
+    nodes_gdf.set_crs(4326, inplace=True)
+    nodes_gdf.to_crs(3035, inplace=True)
     nodes_gdf.set_index("id", inplace=True)
     nodes_gdf.rename(columns={"geometry": "geom"}, inplace=True)
     nodes_gdf.set_geometry("geom", inplace=True)
     nodes_gdf["bounds_key"] = bounds_table
     nodes_gdf["bounds_fid"] = bounds_fid
     nodes_gdf["sources"] = nodes_gdf["sources"].apply(tools.col_to_json)  # type: ignore
-    nodes_gdf.to_crs(3035).to_postgis(  # type: ignore
+    nodes_gdf.to_postgis(  # type: ignore
         target_nodes_table,
         engine,
         if_exists="append",
@@ -56,7 +56,9 @@ def process_extent_network(
                 """
     )
     # EDGES
-    edges_gdf = tools.snip_overture_by_extents(overture_edges_path, bounds_geom)
+    edges_gdf = core.geodataframe("segment", bounds_geom.bounds)  # type:ignore
+    edges_gdf.set_crs(4326, inplace=True)
+    edges_gdf.to_crs(3035, inplace=True)
     edges_gdf.set_index("id", inplace=True)
     edges_gdf.rename(columns={"geometry": "geom"}, inplace=True)
     edges_gdf.set_geometry("geom", inplace=True)
@@ -83,7 +85,7 @@ def process_extent_network(
         "bounds_key",
     ]:
         edges_gdf[col] = edges_gdf[col].apply(tools.col_to_json).astype("str")  # type: ignore
-    edges_gdf.to_crs(3035).to_postgis(  # type: ignore
+    edges_gdf.to_postgis(  # type: ignore
         target_edges_table,
         engine,
         if_exists="append",
@@ -117,11 +119,7 @@ def process_extent_network(
     )
 
 
-def load_overture_networks(
-    overture_nodes_path: str | Path,
-    overture_edges_path: str | Path,
-    drop: bool = False,
-) -> None:
+def load_overture_networks(drop: bool = False) -> None:
     """ """
     logger.info("Loading overture networks")
     tools.prepare_schema("overture")
@@ -145,8 +143,6 @@ def load_overture_networks(
                 bound_geom,
                 bounds_schema,
                 bounds_table,
-                overture_nodes_path,
-                overture_edges_path,
                 target_schema,
                 target_nodes_table,
                 target_edges_table,
@@ -164,30 +160,16 @@ def load_overture_networks(
 if __name__ == "__main__":
     """
     Examples are run from the project folder (the folder containing src)
-    python -m src.data.ingest_overture_networks 'temp/eu-connector.parquet' 'temp/eu-segment.parquet'
+    python -m src.data.ingest_overture_networks
     """
     if True:
-        parser = argparse.ArgumentParser(description="Load overture nodes and edges geoparquet file to DB.")
-        parser.add_argument(
-            "overture_nodes_path",
-            type=str,
-            help="Path to overture nodes dataset.",
-        )
-        parser.add_argument(
-            "overture_edges_path",
-            type=str,
-            help="Path to overture edges dataset.",
-        )
+        parser = argparse.ArgumentParser(description="Load overture nodes and edges to DB.")
         parser.add_argument("--drop", action="store_true", help="Whether to drop existing tables.")
         args = parser.parse_args()
         load_overture_networks(
-            args.overture_nodes_path,
-            args.overture_edges_path,
             drop=args.drop,
         )
     else:
         load_overture_networks(
-            "temp/eu-connector.parquet",
-            "temp/eu-segment.parquet",
             drop=False,
         )

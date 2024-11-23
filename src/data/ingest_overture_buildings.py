@@ -1,8 +1,8 @@
 """ """
 
 import argparse
-from pathlib import Path
 
+from overturemaps import core
 from shapely import geometry
 from sqlalchemy.dialects.postgresql import JSON
 from tqdm import tqdm
@@ -17,13 +17,14 @@ def process_extent_buildings(
     bounds_geom: geometry.Polygon,
     bounds_schema: str,
     bounds_table: str,
-    overture_buildings_path: str | Path,
     target_schema: str,
     target_table: str,
 ):
     """ """
     engine = tools.get_sqlalchemy_engine()
-    buildings_gdf = tools.snip_overture_by_extents(overture_buildings_path, bounds_geom)
+    buildings_gdf = core.geodataframe("building", bounds_geom.bounds)  # type:ignore
+    buildings_gdf.set_crs(4326, inplace=True)
+    buildings_gdf.to_crs(3035, inplace=True)
     buildings_gdf.set_index("id", inplace=True)
     buildings_gdf.rename(columns={"geometry": "geom"}, inplace=True)
     buildings_gdf.set_geometry("geom", inplace=True)
@@ -31,7 +32,7 @@ def process_extent_buildings(
     buildings_gdf["bounds_fid"] = bounds_fid
     for col in ["sources", "names"]:
         buildings_gdf[col] = buildings_gdf[col].apply(tools.col_to_json).astype("str")  # type: ignore
-    buildings_gdf.to_crs(3035).to_postgis(  # type: ignore
+    buildings_gdf.to_postgis(  # type: ignore
         target_table,
         engine,
         if_exists="append",
@@ -55,10 +56,7 @@ def process_extent_buildings(
     )
 
 
-def load_overture_buildings(
-    overture_buildings_path: str | Path,
-    drop: bool = False,
-) -> None:
+def load_overture_buildings(drop: bool = False) -> None:
     """ """
     logger.info("Loading overture buildings")
     tools.prepare_schema("overture")
@@ -81,7 +79,6 @@ def load_overture_buildings(
                 bound_geom,
                 bounds_schema,
                 bounds_table,
-                overture_buildings_path,
                 target_schema,
                 target_table,
             ],
@@ -98,23 +95,12 @@ def load_overture_buildings(
 if __name__ == "__main__":
     """
     Examples are run from the project folder (the folder containing src)
-    python -m src.data.ingest_overture_buildings 'temp/eu_buildings.parquet'
+    python -m src.data.ingest_overture_buildings
     """
     if True:
         parser = argparse.ArgumentParser(description="Load overture buildings geoparquet file to DB.")
-        parser.add_argument(
-            "overture_buildings_path",
-            type=str,
-            help="Path to overture buildings dataset.",
-        )
         parser.add_argument("--drop", action="store_true", help="Whether to drop existing tables.")
         args = parser.parse_args()
-        load_overture_buildings(
-            args.overture_buildings_path,
-            drop=args.drop,
-        )
+        load_overture_buildings(drop=args.drop)
     else:
-        load_overture_buildings(
-            "temp/eu-building.parquet",
-            drop=False,
-        )
+        load_overture_buildings(drop=False)

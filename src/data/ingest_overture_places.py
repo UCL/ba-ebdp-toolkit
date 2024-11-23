@@ -4,8 +4,8 @@ Taken from https://github.com/OvertureMaps/schema/blob/0f9fdbcd88e7c0fc08e9c8c68
 """
 
 import argparse
-from pathlib import Path
 
+from overturemaps import core
 from shapely import geometry
 from sqlalchemy.dialects.postgresql import JSON
 from tqdm import tqdm
@@ -22,13 +22,14 @@ def process_extent_places(
     bounds_geom: geometry.Polygon,
     bounds_schema: str,
     bounds_table: str,
-    overture_places_path: str | Path,
     target_schema: str,
     target_table: str,
 ):
     """ """
     engine = tools.get_sqlalchemy_engine()
-    places_gdf = tools.snip_overture_by_extents(overture_places_path, bounds_geom)
+    places_gdf = core.geodataframe("place", bounds_geom.bounds)  # type:ignore
+    places_gdf.set_crs(4326, inplace=True)
+    places_gdf.to_crs(3035, inplace=True)
     places_gdf.set_index("id", inplace=True)
     places_gdf.rename(columns={"geometry": "geom"}, inplace=True)
     places_gdf.set_geometry("geom", inplace=True)
@@ -78,7 +79,7 @@ def process_extent_places(
         places_gdf[col] = places_gdf[col].apply(tools.col_to_json).astype(str)  # type: ignore
     places_gdf["bounds_key"] = bounds_table
     places_gdf["bounds_fid"] = bounds_fid
-    places_gdf.to_crs(3035).to_postgis(  # type: ignore
+    places_gdf.to_postgis(  # type: ignore
         target_table,
         engine,
         if_exists="append",
@@ -109,10 +110,7 @@ def process_extent_places(
     )
 
 
-def load_overture_places(
-    overture_places_path: str | Path,
-    drop: bool = False,
-) -> None:
+def load_overture_places(drop: bool = False) -> None:
     """ """
     logger.info("Loading overture places")
     tools.prepare_schema("overture")
@@ -135,7 +133,6 @@ def load_overture_places(
                 bound_geom,
                 bounds_schema,
                 bounds_table,
-                overture_places_path,
                 target_schema,
                 target_table,
             ],
@@ -152,23 +149,12 @@ def load_overture_places(
 if __name__ == "__main__":
     """
     Examples are run from the project folder (the folder containing src)
-    python -m src.data.ingest_overture_places 'temp/eu-place.parquet'
+    python -m src.data.ingest_overture_places
     """
-    if True:
+    if False:
         parser = argparse.ArgumentParser(description="Load overture places geoparquet file to DB.")
-        parser.add_argument(
-            "overture_places_path",
-            type=str,
-            help="Path to overture places dataset.",
-        )
         parser.add_argument("--drop", action="store_true", help="Whether to drop existing tables.")
         args = parser.parse_args()
-        load_overture_places(
-            args.overture_places_path,
-            drop=args.drop,
-        )
+        load_overture_places(drop=args.drop)
     else:
-        load_overture_places(
-            "temp/eu-place.parquet",
-            drop=False,
-        )
+        load_overture_places(drop=False)

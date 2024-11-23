@@ -8,7 +8,6 @@ import random
 import time
 import warnings
 from collections.abc import Callable
-from pathlib import Path
 from typing import Any, cast
 
 import geopandas as gpd
@@ -295,24 +294,6 @@ def generate_overture_schema() -> dict[str, list[str]]:
                 if category in cats:
                     schema[category].append(splits[0])
     return schema
-
-
-def snip_overture_by_extents(
-    path: str | Path,
-    bounds_buff: geometry.Polygon,
-) -> gpd.GeoDataFrame:
-    """ """
-    # prepare paths
-    input_path = Path(path)
-    if not str(input_path).endswith("gpkg") and not str(input_path).endswith("parquet"):
-        raise ValueError(f'Expected file path to end with "gpkg" or "geo/parquet": {input_path}')
-    if not input_path.exists():
-        raise ValueError(f"Input path does not exist: {input_path}")
-    # TODO: pending issue https://github.com/OvertureMaps/overturemaps-py/issues/40
-    # for now importing with a locally modified script which injects covering field metadata for bbox
-    gdf = gpd.read_parquet(str(input_path.resolve()), bbox=bounds_buff.bounds)
-
-    return gdf
 
 
 def iter_boundaries(
