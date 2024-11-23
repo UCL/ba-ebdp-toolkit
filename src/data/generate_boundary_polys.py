@@ -28,7 +28,9 @@ def extract_boundary_polys(src_schema_name: str, bounds_raster_table_name: str) 
     # fetch UK boundary to filter out
     uk_boundary = ox.geocode_to_gdf("United Kingdom").to_crs("3035").iloc[0].geometry
     # and EU boundary to filter out remote islands (including Madeira)
-    eu_boundary = geometry.box(1431795, 2500000, 6637004, 4772012)
+    eu_bounds = [2500000, 1250000, 7000000, 5000000]  # E, S, W, N - EPSG:3035
+    logger.info(f"Clipping polygons outside of hard-coded EU boundary: {eu_bounds} (ESWN / EPSG:3035)")
+    eu_boundary = geometry.box(*eu_bounds)  # type: ignore
     # extract polygons from raster
     polys: list[geometry.Polygon] = []
     with MemoryFile(raster_result) as memfile, memfile.open() as dataset:
@@ -41,7 +43,7 @@ def extract_boundary_polys(src_schema_name: str, bounds_raster_table_name: str) 
             poly = geometry.shape(geom)
             # log if anything problematic found
             if not isinstance(poly, geometry.Polygon):
-                logger.warning(f"Discarding extracted geom of type {poly.type}")
+                logger.warning(f"Discarding extracted geom of type {poly.geom_type}")
                 continue
             # don't load if intersecting UK
             if uk_boundary.contains(poly):

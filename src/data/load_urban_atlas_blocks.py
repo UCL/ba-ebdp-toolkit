@@ -109,7 +109,7 @@ def load_urban_blocks(data_dir_path: str) -> None:
 if __name__ == "__main__":
     """
     Examples are run from the project folder (the folder containing src)
-    python -m src.data.load_urban_atlas "./temp/urban atlas"
+    python -m src.data.load_urban_atlas_blocks "./temp/urban atlas"
     """
     if True:
         parser = argparse.ArgumentParser(description="Load building heights raster data.")

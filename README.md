@@ -4,7 +4,7 @@ Lightweight modelling workflow for EBDP TWIN2EXPAND project for evidence based a
 
 ## Development
 
-Project configuration is managed using a `pyproject.toml` file. [`pdm`](https://github.com/pdm-project/pdm) is suggested for installation and management of the packages and related upgrades. For example: `pdm install` will install packages listed in the `pyproject.toml` file and creates a self-contained development environment in a `.venv` folder.
+Project configuration is managed using a `pyproject.toml` file. For development purposes: `uv` is used for installation and management of the packages and related upgrades. For example: `uv sync` will install packages listed in the `pyproject.toml` file and creates a self-contained development environment in a `.venv` folder.
 
 ## Data Loading
 

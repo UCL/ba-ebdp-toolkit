@@ -1,12 +1,12 @@
 # Loading Notes
 
-The data source is a combination of EU Copernicus data, [OpenStreetMap](https://www.openstreetmap.org), and [Overture Maps](https://overturemaps.org). Overture is a relatively new dataset which intends to provide a higher degree of data verification. However, OpenStreetMap currently remains preferable for land-use information.
+The data source is a combination of EU Copernicus data and [Overture Maps](https://overturemaps.org), which largely resembles [OpenStreetMap](https://www.openstreetmap.org). Overture intends to provide a higher degree of data verification and uses fixed releases.
 
 ## PostGIS
 
 Data storage and sharing is done with `postgres` and `postGIS`.
 
-The database adminstrators will ensure that the `postGIS` and other basic extensions are enabled per below.
+The database adminstrators will enable the `postGIS` and other basic extensions per below.
 
 ```sql
 CREATE EXTENSION postgis;
@@ -29,20 +29,14 @@ CREATE SCHEMA IF NOT EXISTS eu;
 
 ## Boundaries
 
-There are several potential EU boundaries datasets:
-
-- [2018 Urban Clusters](https://ec.europa.eu/eurostat/web/gisco/geodata/reference-data/population-distribution-demography/clusters) - The 2018 urban clusters dataset is 1x1km raster based and broadly reflects the 2006 UMZ vector extents. These are [described as](https://ec.europa.eu/eurostat/statistics-explained/index.php?title=Territorial_typologies#Typologies) consisting of 1km2 grid cells with at least 300 people and a contiguous population of 5,000. The high density clusters are [described as](https://ec.europa.eu/eurostat/statistics-explained/index.php?title=Territorial_typologies#Typologies) contiguous 1km2 cells with at least 1,500 residents per km2 and consisting of cumulative urban clusters with at least 50,000 people.
-- [2006 UMZ vector](https://www.eea.europa.eu/en/datahub/datahubitem-view/6e5d9b0d-a448-4c73-b008-bdd98a3cf214) - 2006 UMZ is vector based and broadly reflects the urban clusters dataset but with a greater resolution. It is not being used due to being ~17yrs old.
-- [2012 UMZ](https://www.eea.europa.eu/en/datahub/datahubitem-view/bf175d04-8441-4ed2-b089-9636ecf19353) - 2012 UMZ datasets are clipped to administrative regions and therefore not useful for defining urban extents.
-
-Of these, the raster 2018 high density clusters is used
+Boundaries are extracted from the [2021 Urban Centres / High Density Clusters](https://ec.europa.eu/eurostat/web/gisco/geodata/population-distribution/clusters) dataset. This is 1x1km raster based urban clustering dataset, with high density clusters [described as](https://ec.europa.eu/eurostat/statistics-explained/index.php?title=Territorial_typologies#Typologies) contiguous 1km2 cells with at least 1,500 residents per km2 and consisting of cumulative urban clusters with at least 50,000 people.
 
 - Download the dataset from the above link.
-- From the terminal, prepare and upload to PostGIS, substituting the host, user, and database parameters as required:
+- From the terminal, prepare and upload to PostGIS, substituting the database parameters as required:
 
 ```bash
 # update the path to your postgres bin directory
-/Applications/Postgres.app/Contents/Versions/15/bin/raster2pgsql -d -s 3035 -I -C -M -F -t auto HDENS_CLST_2018.tif eu.hdens_clusters > output.sql
+/Applications/Postgres.app/Contents/Versions/15/bin/raster2pgsql -d -s 3035 -I -C -M -F -t auto HDENS_CLST_2021.tif eu.hdens_clusters > output.sql
 # update the port if necessary
 /Applications/Postgres.app/Contents/Versions/15/bin/psql -h localhost -U editor -d t2e -W -p 5435 -f output.sql
 ```
@@ -53,35 +47,25 @@ Of these, the raster 2018 high density clusters is used
 python -m src.data.generate_boundary_polys eu hdens_clusters
 ```
 
-## Population Density
+## Census Data (2021)
 
-[Eurostat census grid population count](https://ec.europa.eu/eurostat/web/gisco/geodata/reference-data/population-distribution-demography/geostat#geostat11). This is count per km2. (~1.3GB)
+GeoStat Census data for 2021 is [downloaded from](https://ec.europa.eu/eurostat/web/gisco/geodata/population-distribution/geostat). These census statistics are aggregated to 1km2 cells.
 
-- Download the dataset from the above link.
-- From the terminal, prepare and upload to PostGIS, substituting the host, user, and database parameters as required:
+- Download the census ZIP dataset for Version 2021 (16 June 2024).
+- From the terminal, prepare and upload to PostGIS, substituting the database parameters as required:
 
 ```bash
-# update the path to your postgres bin directory
-/Applications/Postgres.app/Contents/Versions/15/bin/raster2pgsql -d -s 3035 -I -C -M -F -t auto ESTAT_OBS-VALUE-T_2021_V1-0.tiff eu.pop_dens > output.sql
-# update the port if necessary
-/Applications/Postgres.app/Contents/Versions/15/bin/psql -h localhost -U editor -d t2e -W -p 5435 -f output.sql
+/Applications/Postgres.app/Contents/Versions/15/bin/ogr2ogr -f "PostgreSQL" PG:"host=localhost dbname=t2e user=editor port=5435 password='<insert>'" "temp/Eurostat_Census-GRID_2021_V2-0/ESTAT_Census_2021_V2.gpkg" -nln eu.stats -progress
 ```
-
-## Census
-
-[census](https://ec.europa.eu/eurostat/web/population-demography/population-housing-censuses/information-data)
-
-- The 2021 census adopts the 1km2 grid, but results are so far only released for population counts.
-- Other data is meant to have been released in March 2024.
 
 ## Urban Atlas
 
 [urban atlas](https://land.copernicus.eu/local/urban-atlas/urban-atlas-2018) (~37GB vectors)
 
-- Run the `load_urban_atlas.py` script to upload the data. Provide the path to the input directory with the zipped data files. The blocks will be loaded to the `blocks` table in the `eu` schema.
+- Run the `load_urban_atlas_blocks.py` script to upload the data. Provide the path to the input directory with the zipped data files. The blocks will be loaded to the `blocks` table in the `eu` schema.
 
 ```bash
-python -m src.data.load_urban_atlas "./temp/urban atlas"
+python -m src.data.load_urban_atlas_blocks "./temp/urban atlas"
 ```
 
 ## Tree cover
@@ -96,23 +80,30 @@ python -m src.data.load_urban_atlas_trees "./temp/urban atlas trees"
 
 ## Downloading Overture data
 
-Overture Maps can now be downloaded with the [`overturemaps-py`](https://github.com/OvertureMaps/overturemaps-py) utility. This can take several hours, so you may wish to let this run overnight.
+Overture Maps can now be downloaded with the [`overturemaps-py`](https://github.com/OvertureMaps/overturemaps-py) utility. This can take several hours for the larger datasets (i.e. buildings).
 
-> This is currently run in a modified form (`temp/overture_debug/test.py`) to inject the `covering` field metadata to enable filtering from `geopandas` reads. This will be addressed in an associated [pull request](https://github.com/OvertureMaps/overturemaps-py/pull/41). Likely to be in the distributed package from v0.9
+Extract the extents for the bounds 10km layer:
+
+```sql
+SELECT ST_Extent(ST_Transform(geom, 4326)) AS bounds
+FROM eu.unioned_bounds_10000
+-- BOX(-9.577981860692864 34.55122224013552,33.76860850857635 65.15090582587982)
+```
 
 ```bash
+# run each of these in a separate terminal window for quicker performance
 # activate local venv if not already active
-# source ./.venv/bin/activate
-overturemaps download --bbox=-12.4214,33.2267,45.5351,71.1354 -f geoparquet --type=place -o temp/eu-place.parquet
-overturemaps download --bbox=-12.4214,33.2267,45.5351,71.1354 -f geoparquet --type=connector -o temp/eu-connector.parquet
-overturemaps download --bbox=-12.4214,33.2267,45.5351,71.1354 -f geoparquet --type=segment -o temp/eu-segment.parquet
-overturemaps download --bbox=-12.4214,33.2267,45.5351,71.1354 -f geoparquet --type=building -o temp/eu-building.parquet
+# source .venv/bin/activate
+overturemaps download --bbox=-9.577981860692864,34.55122224013552,33.76860850857635,65.15090582587982 -f geoparquet --type=place -o temp/eu-place.parquet
+overturemaps download --bbox=-9.577981860692864,34.55122224013552,33.76860850857635,65.15090582587982 -f geoparquet --type=connector -o temp/eu-connector.parquet
+overturemaps download --bbox=-9.577981860692864,34.55122224013552,33.76860850857635,65.15090582587982 -f geoparquet --type=segment -o temp/eu-segment.parquet
+overturemaps download --bbox=-9.577981860692864,34.55122224013552,33.76860850857635,65.15090582587982 -f geoparquet --type=building -o temp/eu-building.parquet
 ```
 
 The download sizes for the EU are:
 
-- Places dataset: 2.5GB
-- Connectors dataset: 8GB
+- Places dataset: 2.24GB
+- Connectors dataset: 7.18GB
 - Segments dataset: 22GB
 - Buildings dataset: 58GB
 
@@ -120,17 +111,19 @@ The download sizes for the EU are:
 
 Upload overture network data (nodes and edges) using the `ingest_networks.py` script. Pass the `--drop` flag to drop and therefore replace existing tables. The loading scripts will otherwise track which boundary extents are loaded and will resume if interrupted. The tables will be uploaded to the `overture` schema.
 
+Segments:
+
 ```bash
 python -m src.data.ingest_overture_networks 'temp/eu-connectors.parquet' 'temp/eu-segments.parquet'
 ```
 
-Places is similar:
+Places:
 
 ```bash
 python -m src.data.ingest_overture_places 'temp/eu-places.parquet'
 ```
 
-As is buildings:
+Buildings:
 
 ```bash
 python -m src.data.ingest_overture_buildings 'temp/eu-buildings.parquet'
@@ -173,8 +166,6 @@ Building and block morphologies:
 ### Building Heights
 
 [Digital Height Model](https://land.copernicus.eu/local/urban-atlas/building-height-2012) (~ 1GB raster).
-
-> NOTE: This workflow assumes running the model for the entirety of the EU. If running a smaller extent, then only the necessary files need to be downloaded and can be uploaded using a similar process to the Population Density example.
 
 - Run the `load_bldg_hts_raster.py` script to upload the building heights data. Provide the path to the input directory with the zipped data files. Use the optional argument `--bin_path` to provide a path to the `bin` directory for your `postgres` installation. The raster will be loaded to the `bldg_hts` table in the `eu` schema.
 

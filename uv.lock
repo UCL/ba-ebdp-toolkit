@@ -1407,7 +1407,7 @@ wheels = [
 
 [[package]]
 name = "momepy"
-version = "0.8.1"
+version = "0.9.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "geopandas" },
@@ -1418,9 +1418,9 @@ dependencies = [
     { name = "shapely" },
     { name = "tqdm" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/80/9a/6eba200dd4aa8c0e564e21ff01e4287f0c5d50af6256abad37c737d52885/momepy-0.8.1.tar.gz", hash = "sha256:ef47195a238d3de90b4ffc0ac2b077abe6a5f9f0742170eaa386350caa792e2c", size = 28025344 }
+sdist = { url = "https://files.pythonhosted.org/packages/bd/60/b5b47689c8090ff4ec582b3ae1530daf5f05373830c7203217c3326dd7f0/momepy-0.9.0.tar.gz", hash = "sha256:98e78b42febd823c9b2e9ca71c0223be53d29524800040b93b0e64a567824800", size = 30092103 }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/2a/37/ab6dc369eb647482663bb668e7bdac7caa7485abc95db56a99ad5748ba82/momepy-0.8.1-py3-none-any.whl", hash = "sha256:d6ebe039b7fbc20d526a4488a49f94f0e2342c3874ddb4b1aad64b85e73655b2", size = 347359 },
+    { url = "https://files.pythonhosted.org/packages/a1/db/bd24eeb8aa10f7ac891e142fc5a5621642603d00f690faa135fa240623f0/momepy-0.9.0-py3-none-any.whl", hash = "sha256:74d20ce88257dcf1e654997427694dc6dd9eb64ed66a372116df1e20d03b6adf", size = 1734885 },
 ]
 
 [[package]]
@@ -1467,15 +1467,15 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "asyncpg", specifier = ">=0.28.0" },
-    { name = "cityseer", specifier = ">=4.15.1" },
+    { name = "cityseer", specifier = ">=4.16.0" },
     { name = "fiona", specifier = ">=1.9.5" },
     { name = "geoalchemy2", specifier = ">=0.14.1" },
     { name = "geopandas", specifier = ">=1.0.1" },
     { name = "matplotlib", specifier = ">=3.8.0" },
-    { name = "momepy", specifier = ">=0.7.0" },
+    { name = "momepy", specifier = ">=0.9.0" },
     { name = "networkx", specifier = ">=3.1" },
     { name = "osmnx", specifier = ">=1.6.0" },
-    { name = "overturemaps", specifier = ">=0.8.0" },
+    { name = "overturemaps", specifier = ">=0.10.0" },
     { name = "pandas", specifier = ">=2.0.3" },
     { name = "psycopg", extras = ["binary"], specifier = ">=3.2.1" },
     { name = "pyproj", specifier = ">=3.6.1" },
@@ -1484,7 +1484,7 @@ requires-dist = [
     { name = "rasterstats", specifier = ">=0.19.0" },
     { name = "scipy", specifier = ">=1.11.3" },
     { name = "seaborn", specifier = ">=0.13.2" },
-    { name = "shapely", specifier = ">=2.0.3" },
+    { name = "shapely", specifier = ">=2.0.6" },
     { name = "sqlalchemy", specifier = ">=2.0.19" },
     { name = "tqdm", specifier = ">=4.65.0" },
 ]
@@ -1961,6 +1961,8 @@ version = "6.1.0"
 source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/26/10/2a30b13c61e7cf937f4adf90710776b7918ed0a9c434e2c38224732af310/psutil-6.1.0.tar.gz", hash = "sha256:353815f59a7f64cdaca1c0307ee13558a0512f6db064e92fe833784f08539c7a", size = 508565 }
 wheels = [
+    { url = "https://files.pythonhosted.org/packages/da/2b/f4dea5d993d9cd22ad958eea828a41d5d225556123d372f02547c29c4f97/psutil-6.1.0-cp27-none-win32.whl", hash = "sha256:9118f27452b70bb1d9ab3198c1f626c2499384935aaf55388211ad982611407e", size = 246648 },
+    { url = "https://files.pythonhosted.org/packages/9f/14/4aa97a7f2e0ac33a050d990ab31686d651ae4ef8c86661fef067f00437b9/psutil-6.1.0-cp27-none-win_amd64.whl", hash = "sha256:a8506f6119cff7015678e2bce904a4da21025cc70ad283a53b099e7620061d85", size = 249905 },
     { url = "https://files.pythonhosted.org/packages/01/9e/8be43078a171381953cfee33c07c0d628594b5dbfc5157847b85022c2c1b/psutil-6.1.0-cp36-abi3-macosx_10_9_x86_64.whl", hash = "sha256:6e2dcd475ce8b80522e51d923d10c7871e45f20918e027ab682f94f1c6351688", size = 247762 },
     { url = "https://files.pythonhosted.org/packages/1d/cb/313e80644ea407f04f6602a9e23096540d9dc1878755f3952ea8d3d104be/psutil-6.1.0-cp36-abi3-macosx_11_0_arm64.whl", hash = "sha256:0895b8414afafc526712c498bd9de2b063deaac4021a3b3c34566283464aff8e", size = 248777 },
     { url = "https://files.pythonhosted.org/packages/65/8e/bcbe2025c587b5d703369b6a75b65d41d1367553da6e3f788aff91eaf5bd/psutil-6.1.0-cp36-abi3-manylinux_2_12_i686.manylinux2010_i686.manylinux_2_17_i686.manylinux2014_i686.whl", hash = "sha256:9dcbfce5d89f1d1f2546a2090f4fcf87c7f669d1d90aacb7d7582addece9fb38", size = 284259 },
