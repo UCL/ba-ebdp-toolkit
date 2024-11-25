@@ -33,6 +33,7 @@ def process_extent_places(
     places_gdf.set_index("id", inplace=True)
     places_gdf.rename(columns={"geometry": "geom"}, inplace=True)
     places_gdf.set_geometry("geom", inplace=True)
+    places_gdf.drop(columns=["bbox"], inplace=True)
 
     def extract_main_cat(lu_classes: dict | None) -> str | None:
         if lu_classes is None:
@@ -152,7 +153,7 @@ if __name__ == "__main__":
     python -m src.data.ingest_overture_places
     """
     if False:
-        parser = argparse.ArgumentParser(description="Load overture places geoparquet file to DB.")
+        parser = argparse.ArgumentParser(description="Load overture places to DB.")
         parser.add_argument("--drop", action="store_true", help="Whether to drop existing tables.")
         args = parser.parse_args()
         load_overture_places(drop=args.drop)

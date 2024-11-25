@@ -30,6 +30,7 @@ def process_extent_network(
     nodes_gdf.set_index("id", inplace=True)
     nodes_gdf.rename(columns={"geometry": "geom"}, inplace=True)
     nodes_gdf.set_geometry("geom", inplace=True)
+    nodes_gdf.drop(columns=["bbox"], inplace=True)
     nodes_gdf["bounds_key"] = bounds_table
     nodes_gdf["bounds_fid"] = bounds_fid
     nodes_gdf["sources"] = nodes_gdf["sources"].apply(tools.col_to_json)  # type: ignore
@@ -62,6 +63,7 @@ def process_extent_network(
     edges_gdf.set_index("id", inplace=True)
     edges_gdf.rename(columns={"geometry": "geom"}, inplace=True)
     edges_gdf.set_geometry("geom", inplace=True)
+    edges_gdf.drop(columns=["bbox"], inplace=True)
     edges_gdf["bounds_key"] = bounds_table
     edges_gdf["bounds_fid"] = bounds_fid
     # convert other data columns to JSON
