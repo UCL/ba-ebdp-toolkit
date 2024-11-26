@@ -71,6 +71,7 @@ def generate_raw_network(
         edges_gdf=edges_gdf,  # type: ignore
         # not dropping "parking_aisle" because this sometimes removes important links
     )
+    # multigraph = graphs._clean_network(multigraph, )
     edges_gdf = io.geopandas_from_nx(multigraph, crs=3035)
     edges_gdf["bounds_key"] = bounds_table
     edges_gdf["bounds_fid"] = bounds_fid
