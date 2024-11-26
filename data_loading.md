@@ -150,13 +150,23 @@ ALTER TABLE overture.overture_buildings ADD COLUMN rast_ht real;
 -- Update rast_ht with average raster value where raster intersects building geometry
 UPDATE overture.overture_buildings p
 SET rast_ht = (
-    -- Average value of raster where it intersects building
-    SELECT AVG(ST_Value(r.rast, ST_Intersection(r.rast, p.geom)))
-    FROM eu.bldg_hts r
-    WHERE ST_Intersects(r.rast, p.geom)
+    -- Calculate the average raster value from clipped raster
+    SELECT AVG(val)
+    FROM (
+        SELECT ST_Value(clipped_rast.rast, x.geom) AS val
+        FROM (
+            -- Clip raster to building geometry
+            SELECT ST_Clip(r.rast, p.geom) AS rast
+            FROM eu.bldg_hts r
+            WHERE ST_Intersects(r.rast, p.geom)
+        ) clipped_rast,
+        -- Convert clipped raster to points
+        LATERAL ST_PixelAsPoints(clipped_rast.rast) x
+    ) subquery
 )
 WHERE EXISTS (
-    SELECT 1 FROM eu.bldg_hts r
+    SELECT 1
+    FROM eu.bldg_hts r
     WHERE ST_Intersects(r.rast, p.geom)
 );
 
