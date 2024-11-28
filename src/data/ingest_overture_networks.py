@@ -69,12 +69,9 @@ def process_extent_network(
     # convert other data columns to JSON
     for col in [
         "sources",
-        "subtype",
-        "class",
         "names",
         "connectors",
         "routes",
-        "subclass",
         "subclass_rules",
         "access_restrictions",
         "level_rules",
@@ -84,7 +81,6 @@ def process_extent_network(
         "road_flags",
         "speed_limits",
         "width_rules",
-        "bounds_key",
     ]:
         edges_gdf[col] = edges_gdf[col].apply(tools.col_to_json).astype("str")  # type: ignore
     edges_gdf.to_postgis(  # type: ignore
@@ -99,8 +95,10 @@ def process_extent_network(
             "names": JSON,
             "connectors": JSON,
             "routes": JSON,
+            "subclass_rules": JSON,
             "access_restrictions": JSON,
             "level_rules": JSON,
+            "destinations": JSON,
             "prohibited_transitions": JSON,
             "road_surface": JSON,
             "road_flags": JSON,
