@@ -47,47 +47,52 @@ def prepare_metrics_takeoffs(city_key: str, bounds_10km: int):
         )
 
 
-def prepare_overture_data_takeoffs(city_key: str, bounds_2km: int, bounds_10km: int):
+def prepare_data_takeoffs(city_key: str, bounds_fid_2km: int, bounds_fid_10km: int):
     """ """
     logger.info(f"Processing {city_key}")
     tools.db_execute("CREATE SCHEMA IF NOT EXISTS takeoffs")
-    for overture_table, bounds_fid in [
-        ("overture_edge", bounds_10km),  # uses 10km
-        ("overture_node", bounds_10km),
-        ("overture_buildings", bounds_2km),  # uses 2km
-        ("overture_infrast", bounds_2km),
-        ("overture_place", bounds_2km),
+    for schema, table, bounds_table, bounds_fid in [
+        ("overture", "network_edges_clean", "unioned_bounds_10000", bounds_fid_10km),  # uses 10km
+        ("overture", "overture_buildings", "unioned_bounds_2000", bounds_fid_2km),  # uses 2km
+        ("overture", "overture_infrast", "unioned_bounds_2000", bounds_fid_2km),
+        ("overture", "overture_place", "unioned_bounds_2000", bounds_fid_2km),
+        ("eu", "blocks", "unioned_bounds_2000", bounds_fid_2km),  # uses 2km
+        ("eu", "stats", "unioned_bounds_2000", bounds_fid_2km),  # uses 2km
+        ("eu", "trees", "unioned_bounds_2000", bounds_fid_2km),  # uses 2km
     ]:
-        logger.info(f"Processing {overture_table}")
-        logger.info("Checking for index")
-        tools.db_execute(
-            f"CREATE INDEX IF NOT EXISTS idx_{overture_table}_bounds_fid ON overture.{overture_table} (bounds_fid);"
-        )
+        logger.info(f"Processing {table}")
         logger.info("Reading")
-        overture_data = gpd.read_postgis(
+        data = gpd.read_postgis(
             f"""
-            SELECT
-                ot.*
-            FROM
-                overture.{overture_table} ot
-            WHERE ot.bounds_fid = {bounds_fid};
+            WITH bounds AS (
+                SELECT geom
+                FROM eu.{bounds_table}
+                WHERE fid = {bounds_fid}
+            )
+            SELECT ot.*
+            FROM {schema}.{table} ot
+            JOIN bounds b ON ST_Intersects(b.geom, ot.geom);
             """,
             engine,
             index_col="fid",
             geom_col="geom",
         )
         logger.info("Writing")
-        overture_data.to_postgis(  # type:ignore
-            f"b_{city_key}_{overture_table}",
+        data.to_postgis(  # type:ignore
+            f"{city_key}_{table}",
             engine,
             if_exists="replace",
             schema="takeoffs",
             index=True,
             index_label="fid",
         )
+        # GPKG expects int index
+        data.reset_index(drop=True, inplace=True)  # type:ignore
+        data.to_file(f"temp/{city_key}_{table}.gpkg")  # type:ignore
 
 
 if __name__ == "__main__":
     """ """
-    prepare_overture_data_takeoffs("nicosia", 105, 119)
+    # prepare_data_takeoffs("nicosia", 105, 119)
+    prepare_data_takeoffs("madrid", 6, 7)
     # prepare_metrics_takeoffs(673)
