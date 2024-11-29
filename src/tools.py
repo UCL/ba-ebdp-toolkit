@@ -148,7 +148,7 @@ def generate_graph(
     logger.info("Adding nodes to graph")
     # dedupe nodes
     node_map = {}
-    for node_row in tqdm(nodes_gdf.itertuples()):
+    for node_row in tqdm(nodes_gdf.itertuples(), total=len(nodes_gdf)):
         # catch duplicates in case of overture dupes by xy or database dupes
         x = node_row.geom.x  # type: ignore
         y = node_row.geom.y  # type: ignore
@@ -167,14 +167,14 @@ def generate_graph(
     logger.info("Adding edges to graph")
     dropped_road_types = set()
     kept_road_types = set()
-    for edge_idx, edges_data in tqdm(edges_gdf.iterrows()):
+    for edge_idx, edges_data in tqdm(edges_gdf.iterrows(), total=len(edges_gdf)):
         road_class = edges_data["class"]
         if road_class in drop_road_types:
             dropped_road_types.add(road_class)
             continue
         kept_road_types.add(road_class)
         uniq_fids = set()
-        connector_fids: list[str] = edges_data.connector_ids
+        connector_fids: list[str] = [connector["connector_id"] for connector in edges_data["connectors"]]
         connector_infos: list[tuple[str, geometry.Point]] = []
         missing_connectors = False
         for connector_fid in connector_fids:
@@ -211,8 +211,16 @@ def generate_graph(
             for routes_info in edges_data["routes"]:
                 if "ref" in routes_info:
                     routes.add(routes_info["ref"])
+        is_tunnel = False
+        is_bridge = False
+        if edges_data["road_flags"] is not None:
+            for flags_info in edges_data["road_flags"]:
+                if "is_tunnel" in flags_info["values"]:
+                    is_tunnel = True
+                if "is_bridge" in flags_info["values"]:
+                    is_bridge = True
         highways = []  # takes list form for nx
-        if road_class is not None and road_class not in ["unknown", "unclassified"]:
+        if road_class is not None and road_class not in ["unknown"]:
             highways.append(road_class)
         # split segments and build
         street_segs = split_street_segment(edges_data.geom, connector_infos)
@@ -240,6 +248,8 @@ def generate_graph(
                     names=names,
                     routes=list(routes),
                     highways=highways,
+                    is_bridge=is_bridge,
+                    is_tunnel=is_tunnel,
                 )
     logger.info(f'Dropped road types: {", ".join(dropped_road_types)}')
     logger.info(f'Kept road types: {", ".join(kept_road_types)}')
