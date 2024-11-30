@@ -64,19 +64,16 @@ def compute_centrality_metrics(
     target_schema = "metrics"
     target_table = "centrality"
     bounds_fids_geoms = tools.iter_boundaries(bounds_schema, bounds_table, bounds_fid_col, bounds_geom_col, wgs84=False)
-    # check fids
-    bounds_fids = [big[0] for big in bounds_fids_geoms]
-    if isinstance(target_bounds_fids, str) and target_bounds_fids == "all":
-        process_fids = bounds_fids
-    elif set(target_bounds_fids).issubset(set(bounds_fids)):
-        process_fids = target_bounds_fids
+    # target fids
+    if target_bounds_fids == "all":
+        target_fids = [int(big[0]) for big in bounds_fids_geoms]
     else:
-        raise ValueError(
-            'target_bounds_fids must either be "all" to load all boundaries '
-            f"or should correspond to an fid found in {bounds_schema}.{bounds_table} table."
-        )
+        target_fids = [int(fid) for fid in target_bounds_fids]
+
     # iter
-    for bound_fid in tqdm(process_fids):
+    for bound_fid, _ in tqdm(bounds_fids_geoms):
+        if bound_fid not in target_fids:
+            continue
         tools.process_func_with_bound_tracking(
             bound_fid=bound_fid,
             load_key=load_key,
