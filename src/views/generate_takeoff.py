@@ -59,6 +59,7 @@ def prepare_data_takeoffs(city_key: str, bounds_fid_2km: int, bounds_fid_10km: i
         ("eu", "blocks", "unioned_bounds_2000", bounds_fid_2km),  # uses 2km
         ("eu", "stats", "unioned_bounds_2000", bounds_fid_2km),  # uses 2km
         ("eu", "trees", "unioned_bounds_2000", bounds_fid_2km),  # uses 2km
+        ("eu", "bounds", "unioned_bounds_2000", bounds_fid_2km),  # uses 2km
     ]:
         logger.info(f"Processing {table}")
         logger.info("Reading")
@@ -93,6 +94,6 @@ def prepare_data_takeoffs(city_key: str, bounds_fid_2km: int, bounds_fid_10km: i
 
 if __name__ == "__main__":
     """ """
-    # prepare_data_takeoffs("nicosia", 105, 119)
-    prepare_data_takeoffs("madrid", 6, 7)
+    prepare_data_takeoffs("nicosia", 105, 119)
+    # prepare_data_takeoffs("madrid", 6, 7)
     # prepare_metrics_takeoffs(673)
