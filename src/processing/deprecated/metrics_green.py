@@ -2,8 +2,6 @@
 This method is replaced with the rasterised -> convolution method for performance.
 """
 
-from __future__ import annotations
-
 import argparse
 
 import geopandas as gpd

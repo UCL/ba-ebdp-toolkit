@@ -18,7 +18,9 @@ import psycopg
 import sqlalchemy
 from cityseer.tools import io
 from dotenv import load_dotenv
+from pyproj import Transformer
 from shapely import geometry, ops, wkb
+from shapely.ops import transform
 from tqdm import tqdm
 
 warnings.simplefilter(action="ignore", category=pd.errors.PerformanceWarning)
@@ -443,7 +445,8 @@ def drop_content(
         # how to make this more explicit in future regarding upstream workflows
         db_execute(
             f"""
-            CREATE INDEX IF NOT EXISTS bounds_fid_idx ON {target_db_schema}.{target_db_table} (bounds_fid);
+            CREATE INDEX IF NOT EXISTS idx_{target_db_schema}_{target_db_table}_bounds_fid 
+                ON {target_db_schema}.{target_db_table} (bounds_fid);
             """
         )
         db_execute(
@@ -547,3 +550,11 @@ def bounds_fid_type(value):
         return [int(value)]
     except ValueError as e:
         raise argparse.ArgumentTypeError(f"{value} is not a valid bounds_fid. It must be an integer or 'all'.") from e
+
+
+def reproject_geometry(geom, from_crs, to_crs):
+    """ """
+    transformer = Transformer.from_crs(from_crs, to_crs, always_xy=True)
+    reprojected_geom = transform(transformer.transform, geom)
+
+    return reprojected_geom

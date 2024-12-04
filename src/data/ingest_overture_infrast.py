@@ -2,12 +2,12 @@
 
 import argparse
 
-from overturemaps import core
 from shapely import geometry
 from sqlalchemy.dialects.postgresql import JSON
 from tqdm import tqdm
 
 from src import tools
+from src.data import loaders
 
 logger = tools.get_logger(__name__)
 
@@ -15,38 +15,13 @@ logger = tools.get_logger(__name__)
 def process_extent_infrast(
     bounds_fid: int | str,
     bounds_geom: geometry.Polygon,
-    bounds_schema: str,
     bounds_table: str,
     target_schema: str,
     target_table: str,
 ):
     """ """
     engine = tools.get_sqlalchemy_engine()
-    infrast_gdf = core.geodataframe("infrastructure", bounds_geom.bounds)  # type:ignore
-    infrast_gdf.set_crs(4326, inplace=True)
-    infrast_gdf.to_crs(3035, inplace=True)
-    infrast_gdf.set_index("id", inplace=True)
-    infrast_gdf.rename(columns={"geometry": "geom"}, inplace=True)
-    infrast_gdf.set_geometry("geom", inplace=True)
-    infrast_gdf = infrast_gdf[infrast_gdf.geom.geom_type == "Point"]  # returns line and polygons as well
-    infrast_gdf.drop(columns=["bbox"], inplace=True)
-
-    def extract_name(names: dict | None) -> str | None:
-        if names is None:
-            return None
-        if names["common"] is not None:
-            return names["common"]
-        if names["primary"] is not None:
-            return names["primary"]
-        return None
-
-    infrast_gdf["common_name"] = infrast_gdf["names"].apply(extract_name)  # type: ignore
-    for col in [
-        "sources",
-        "names",
-        "source_tags",
-    ]:
-        infrast_gdf[col] = infrast_gdf[col].apply(tools.col_to_json).astype(str)  # type: ignore
+    infrast_gdf = loaders.load_infrastructure(bounds_geom, 3530)
     infrast_gdf["bounds_key"] = bounds_table
     infrast_gdf["bounds_fid"] = bounds_fid
     infrast_gdf.to_postgis(  # type: ignore
@@ -61,16 +36,6 @@ def process_extent_infrast(
             "names": JSON,
             "source_tags": JSON,
         },
-    )
-    tools.db_execute(
-        f"""
-        DELETE FROM {target_schema}.{target_table} p
-        WHERE bounds_fid = {bounds_fid} AND NOT EXISTS (
-            SELECT 1 
-            FROM {bounds_schema}.{bounds_table} b
-            WHERE ST_Contains(b.geom, p.geom)
-        );
-        """
     )
 
 
@@ -95,7 +60,6 @@ def load_overture_infrast(drop: bool = False) -> None:
             func_args=[
                 bound_fid,
                 bound_geom,
-                bounds_schema,
                 bounds_table,
                 target_schema,
                 target_table,
@@ -115,7 +79,7 @@ if __name__ == "__main__":
     Examples are run from the project folder (the folder containing src)
     python -m src.data.ingest_overture_infrast
     """
-    if False:
+    if True:
         parser = argparse.ArgumentParser(description="Load overture infrastructure to DB.")
         parser.add_argument("--drop", action="store_true", help="Whether to drop existing tables.")
         args = parser.parse_args()

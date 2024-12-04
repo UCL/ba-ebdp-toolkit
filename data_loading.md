@@ -82,16 +82,16 @@ python -m src.data.load_urban_atlas_trees "./temp/urban atlas trees"
 
 Upload overture data. Pass the `--drop` flag to drop and therefore replace existing tables. The loading scripts will otherwise track which boundary extents are loaded and will resume if interrupted. The tables will be uploaded to the `overture` schema.
 
-Network:
+Places:
 
 ```bash
-python -m src.data.ingest_overture_networks
+python -m src.data.ingest_overture_places
 ```
 
 Places:
 
 ```bash
-python -m src.data.ingest_overture_places
+python -m src.data.ingest_overture_infrast
 ```
 
 Buildings:
@@ -100,12 +100,10 @@ Buildings:
 python -m src.data.ingest_overture_buildings
 ```
 
-## Network preparation and cleaning
-
-Subsequent steps make use of a cleaned network representation. Run the `generate_networks.py` script to generate the cleaned network, which will be saved to the `overture` schema. Pass the optional `parallel_workers` argument to specify the number of CPU cores to use.
+Network (cleaned) - in this case there is an optional parallel workers argument:
 
 ```bash
-python -m src.processing.generate_networks all --parallel_workers 2
+python -m src.data.ingest_overture_networks all --parallel_workers 4
 ```
 
 ## Metrics
