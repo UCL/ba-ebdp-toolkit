@@ -1,5 +1,5 @@
 [project]
-name = "name"
+name = "ebdp-toolkit"
 version = "0.3.0"
 description = "describe"
 readme = "README.md"
