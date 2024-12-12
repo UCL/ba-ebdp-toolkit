@@ -5,6 +5,7 @@ import concurrent.futures
 import os
 import traceback
 
+from cityseer.tools import graphs, io
 from shapely import geometry
 from sqlalchemy.dialects.postgresql import JSON
 
@@ -21,11 +22,12 @@ def process_extent_network(
     target_schema: str,
     target_nodes_table: str,
     target_edges_table: str,
+    target_clean_nodes_table: str,
     target_clean_edges_table: str,
 ):
     """ """
     engine = tools.get_sqlalchemy_engine()
-    nodes_gdf, edges_gdf, clean_edges_gdf = loaders.load_network(bounds_geom, 3530)
+    nodes_gdf, edges_gdf, clean_edges_gdf = loaders.load_network(bounds_geom, 3035)
     # NODES
     nodes_gdf["bounds_key"] = bounds_table
     nodes_gdf["bounds_fid"] = bounds_fid
@@ -66,11 +68,26 @@ def process_extent_network(
             "width_rules": JSON,
         },
     )
-    # CLEAN EDGES
-    clean_edges_gdf["bounds_key"] = bounds_table
-    clean_edges_gdf["bounds_fid"] = bounds_fid
+    # DUAL CLEAN NETWORK
+    nx_clean = io.nx_from_generic_geopandas(clean_edges_gdf)
+    # cast to dual
+    nx_dual = graphs.nx_to_dual(nx_clean)
+    # back to GDF
+    nodes_dual_gdf, edges_dual_gdf, _network_structure = io.network_structure_from_nx(nx_dual, crs=3035)
     # write
-    clean_edges_gdf.to_postgis(
+    nodes_dual_gdf["bounds_key"] = bounds_table
+    nodes_dual_gdf["bounds_fid"] = bounds_fid
+    nodes_dual_gdf.to_postgis(
+        target_clean_nodes_table,
+        engine,
+        if_exists="append",
+        schema=target_schema,
+        index=True,
+        index_label="fid",
+    )
+    edges_dual_gdf["bounds_key"] = bounds_table
+    edges_dual_gdf["bounds_fid"] = bounds_fid
+    edges_dual_gdf.to_postgis(
         target_clean_edges_table,
         engine,
         if_exists="append",
@@ -95,7 +112,8 @@ def process_network(
     target_schema = "overture"
     target_nodes_table = "overture_node"
     target_edges_table = "overture_edge"
-    target_clean_edges_table = "network_edges_clean"
+    target_clean_nodes_table = "dual_nodes"
+    target_clean_edges_table = "dual_edges"
 
     bounds_fids_geoms = tools.iter_boundaries(bounds_schema, bounds_table, bounds_fid_col, bounds_geom_col, wgs84=True)
     # target fids
@@ -124,10 +142,11 @@ def process_network(
                         target_schema,
                         target_nodes_table,
                         target_edges_table,
+                        target_clean_nodes_table,
                         target_clean_edges_table,
                     ],
                     target_schema,
-                    [target_nodes_table, target_edges_table, target_clean_edges_table],
+                    [target_nodes_table, target_edges_table, target_clean_nodes_table, target_clean_edges_table],
                     bounds_schema,
                     bounds_table,
                     bounds_geom_col,

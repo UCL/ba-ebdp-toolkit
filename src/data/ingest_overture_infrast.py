@@ -21,7 +21,7 @@ def process_extent_infrast(
 ):
     """ """
     engine = tools.get_sqlalchemy_engine()
-    infrast_gdf = loaders.load_infrastructure(bounds_geom, 3530)
+    infrast_gdf = loaders.load_infrastructure(bounds_geom, 3035)
     infrast_gdf["bounds_key"] = bounds_table
     infrast_gdf["bounds_fid"] = bounds_fid
     infrast_gdf.to_postgis(  # type: ignore
