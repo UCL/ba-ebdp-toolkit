@@ -26,7 +26,7 @@ def prepare_metrics_takeoffs(city_key: str, bounds_10km: int):
             FROM
                 metrics.{metrics_table} mt
             JOIN
-                overture.network_nodes_clean nnc
+                overture.dual_nodes nnc
             ON
                 mt.fid = nnc.fid
             WHERE mt.bounds_fid = {bounds_10km}
@@ -52,7 +52,7 @@ def prepare_data_takeoffs(city_key: str, bounds_fid_2km: int, bounds_fid_10km: i
     logger.info(f"Processing {city_key}")
     tools.db_execute("CREATE SCHEMA IF NOT EXISTS takeoffs")
     for schema, table, bounds_table, bounds_fid in [
-        ("overture", "network_edges_clean", "unioned_bounds_10000", bounds_fid_10km),  # uses 10km
+        ("overture", "dual_edges", "unioned_bounds_10000", bounds_fid_10km),  # uses 10km
         ("overture", "overture_buildings", "unioned_bounds_2000", bounds_fid_2km),  # uses 2km
         ("overture", "overture_infrast", "unioned_bounds_2000", bounds_fid_2km),
         ("overture", "overture_place", "unioned_bounds_2000", bounds_fid_2km),

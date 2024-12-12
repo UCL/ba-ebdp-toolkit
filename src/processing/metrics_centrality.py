@@ -3,7 +3,6 @@
 import argparse
 
 from cityseer.metrics import networks
-from cityseer.tools import io
 from tqdm import tqdm
 
 from src import tools
@@ -18,18 +17,14 @@ def process_centrality(
     target_table: str,
 ):
     engine = tools.get_sqlalchemy_engine()
-    multigraph = tools.load_bounds_fid_network_from_db(engine, bounds_fid, buffer_col=bounds_geom_col)
-    if len(multigraph) == 0:
-        raise OSError(f"No network data for bounds FID: {bounds_fid}")
-    nodes_gdf, _edges_gdf, network_structure = io.network_structure_from_nx(multigraph, crs=3035)
+    nodes_gdf, edges_gdf, network_structure = tools.load_bounds_fid_network_from_db(
+        engine, bounds_fid, buffer_col=bounds_geom_col
+    )
     # track bounds
     nodes_gdf.loc[:, "bounds_key"] = "bounds"
     nodes_gdf.loc[:, "bounds_fid"] = bounds_fid
     # compute centrality
     nodes_gdf = networks.node_centrality_shortest(
-        network_structure, nodes_gdf, distances=[500, 1000, 2000, 5000, 10000]
-    )
-    nodes_gdf = networks.node_centrality_simplest(
         network_structure, nodes_gdf, distances=[500, 1000, 2000, 5000, 10000]
     )
     # keep only live
@@ -48,10 +43,7 @@ def compute_centrality_metrics(
     target_bounds_fids: list[int] | str,
     drop: bool = False,
 ):
-    if not (
-        tools.check_table_exists("overture", "network_nodes_clean")
-        and tools.check_table_exists("overture", "network_edges_clean")
-    ):
+    if not (tools.check_table_exists("overture", "dual_nodes") and tools.check_table_exists("overture", "dual_edges")):
         raise OSError("The cleaned network nodes and edges tables need to be created prior to proceeding.")
     logger.info("Computing network centrality")
     tools.prepare_schema("metrics")
@@ -69,7 +61,6 @@ def compute_centrality_metrics(
         target_fids = [int(big[0]) for big in bounds_fids_geoms]
     else:
         target_fids = [int(fid) for fid in target_bounds_fids]
-
     # iter
     for bound_fid, _ in tqdm(bounds_fids_geoms):
         if bound_fid not in target_fids:
@@ -114,8 +105,8 @@ if __name__ == "__main__":
             drop=args.drop,
         )
     else:
-        bounds_fids = [0]
+        bounds_fids = [636]
         compute_centrality_metrics(
             bounds_fids,
-            drop=False,
+            drop=True,
         )

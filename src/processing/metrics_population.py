@@ -32,7 +32,7 @@ def process_population(
             ST_Contains(b.geom, c.geom) as live,
             c.weight,
             c.geom
-        FROM overture.network_nodes_clean c, eu.{bounds_table} b
+        FROM overture.dual_nodes c, eu.{bounds_table} b
         WHERE b.{bounds_fid_col} = {bounds_fid}
             AND ST_Contains(b.geom, c.geom) -- use bounds no need for buffer
         """,
@@ -107,10 +107,7 @@ def compute_population_metrics(
     target_bounds_fids: list[int] | str,
     drop: bool = False,
 ):
-    if not (
-        tools.check_table_exists("overture", "network_nodes_clean")
-        and tools.check_table_exists("overture", "network_edges_clean")
-    ):
+    if not (tools.check_table_exists("overture", "dual_nodes") and tools.check_table_exists("overture", "dual_edges")):
         raise OSError("The cleaned network nodes and edges tables need to be created prior to proceeding.")
     logger.info("Computing population metrics")
     tools.prepare_schema("metrics")

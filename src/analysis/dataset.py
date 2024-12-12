@@ -132,7 +132,7 @@ data_gdf = gpd.read_postgis(
             {', '.join(morph_cols)},
             pop.pop_dens,
             nnc.edge_geom as geom
-        FROM overture.network_nodes_clean nnc TABLESAMPLE SYSTEM (2)
+        FROM overture.dual_nodes nnc TABLESAMPLE SYSTEM (2)
         JOIN metrics.centrality mc ON nnc.fid = mc.fid
         JOIN metrics.green gr ON nnc.fid = gr.fid
         JOIN metrics.landuses lu ON nnc.fid = lu.fid

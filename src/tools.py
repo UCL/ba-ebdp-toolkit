@@ -490,33 +490,34 @@ def process_func_with_bound_tracking(
         tracking_state_set_loaded(load_key, bound_fid)
 
 
-def load_bounds_fid_network_from_db(engine: sqlalchemy.Engine, bounds_fid: int, buffer_col: str) -> nx.MultiGraph:
+def load_bounds_fid_network_from_db(
+    engine: sqlalchemy.Engine, bounds_fid: int, buffer_col: str
+) -> tuple[gpd.GeoDataFrame, gpd.GeoDataFrame, Any]:
     """ """
-    # load nodes
+    # load nodes - i.e. where primal node (centroid of dual segment) is contained
     nodes_gdf: gpd.GeoDataFrame = gpd.read_postgis(  # type: ignore
         f"""
         SELECT
             c.fid,
-            c.ns_node_idx,
             c.x,
             c.y,
-            ST_Contains(b.geom, c.geom) as live,
+            ST_Contains(b.geom, ST_Centroid(c.primal_edge)) as live,
             c.weight,
-            c.geom
-        FROM overture.network_nodes_clean c, eu.bounds b
+            c.primal_edge as geom
+        FROM overture.dual_nodes c, eu.bounds b
             WHERE b.fid = {bounds_fid}
-                AND ST_Contains(b.{buffer_col}, c.geom)
+                AND ST_Intersects(b.{buffer_col}, c.primal_edge)
+                AND ST_Contains(b.{buffer_col}, ST_Centroid(c.primal_edge))
         """,
         engine,
         index_col="fid",
         geom_col="geom",
     )
-    # load edges
+    # load edges where contained - i.e. to connect loaded nodes
     edges_gdf: gpd.GeoDataFrame = gpd.read_postgis(  # type: ignore
         f"""
         SELECT
             c.fid,
-            c.ns_edge_idx,
             c.start_ns_node_idx,
             c.end_ns_node_idx,
             c.edge_idx,
@@ -527,9 +528,8 @@ def load_bounds_fid_network_from_db(engine: sqlalchemy.Engine, bounds_fid: int, 
             c.imp_factor,
             c.in_bearing,
             c.out_bearing,
-            c.total_bearing,
             c.geom
-        FROM overture.network_edges_clean c, eu.bounds b
+        FROM overture.dual_edges c, eu.bounds b
             WHERE b.fid = {bounds_fid}
                 AND ST_Contains(b.{buffer_col}, c.geom)
         """,
@@ -537,10 +537,11 @@ def load_bounds_fid_network_from_db(engine: sqlalchemy.Engine, bounds_fid: int, 
         index_col="fid",
         geom_col="geom",
     )
-    logger.info("Generating networkx graph")
-    multigraph = io.nx_from_cityseer_geopandas(nodes_gdf, edges_gdf)
+    if len(nodes_gdf) == 0:
+        raise OSError(f"No network data for bounds FID: {bounds_fid}")
+    network_structure = io.network_structure_from_gpd(nodes_gdf, edges_gdf)
 
-    return multigraph
+    return nodes_gdf, edges_gdf, network_structure
 
 
 def bounds_fid_type(value):

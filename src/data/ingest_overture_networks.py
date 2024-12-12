@@ -104,7 +104,7 @@ def process_network(
 ):
     """ """
     logger.info("Preparing cleaned networks")
-    load_key = "network_edges_clean"
+    load_key = "dual_edges"
     bounds_schema = "eu"
     bounds_table = "unioned_bounds_10000"
     bounds_geom_col = "geom"
@@ -171,7 +171,7 @@ if __name__ == "__main__":
     python -m src.data.ingest_overture_networks all --parallel_workers 4
     """
 
-    if True:
+    if False:
         parser = argparse.ArgumentParser(description="Convert raw Overture nodes and edges to network.")
         parser.add_argument(
             "bounds_fid",

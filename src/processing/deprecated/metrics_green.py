@@ -33,7 +33,7 @@ def process_green(
             ST_Contains(b.geom, c.geom) as live,
             c.weight,
             c.geom
-        FROM overture.network_nodes_clean c, eu.{bounds_table} b
+        FROM overture.dual_nodes c, eu.{bounds_table} b
         WHERE b.{bounds_fid_col} = {bounds_fid}
             AND ST_Contains(b.geom, c.geom) -- use bounds no need for buffer
         """,
@@ -114,8 +114,8 @@ def compute_green_metrics(
     drop: bool = False,
 ):
     if not (
-        tools.check_table_exists("overture", "network_nodes_clean")
-        and tools.check_table_exists("overture", "network_edges_clean")
+        tools.check_table_exists("overture", "dual_nodes")
+        and tools.check_table_exists("overture", "dual_edges")
     ):
         raise OSError("The cleaned network nodes and edges tables need to be created prior to proceeding.")
     logger.info("Computing green metrics")

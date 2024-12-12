@@ -14,7 +14,7 @@ SELECT
     mc.*,
     ST_SetSRID(nnc.edge_geom, 3035)::geometry(Linestring, 3035) AS edge_geom
 FROM
-    overture.network_nodes_clean nnc
+    overture.dual_nodes nnc
 JOIN
     metrics.centrality mc
 ON

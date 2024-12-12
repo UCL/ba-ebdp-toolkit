@@ -82,10 +82,7 @@ def compute_landuse_metrics(
     target_bounds_fids: list[int] | str,
     drop: bool = False,
 ):
-    if not (
-        tools.check_table_exists("overture", "network_nodes_clean")
-        and tools.check_table_exists("overture", "network_edges_clean")
-    ):
+    if not (tools.check_table_exists("overture", "dual_nodes") and tools.check_table_exists("overture", "dual_edges")):
         raise OSError("The cleaned network nodes and edges tables need to be created prior to proceeding.")
     logger.info("Computing landuse metrics")
     tools.prepare_schema("metrics")
