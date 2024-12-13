@@ -64,6 +64,59 @@ def process_landuses(
         network_structure=network_structure,
         distances=[100, 500, 1500],
     )
+    # infrastructure
+    street_furn_keys = [
+        "bench",
+        "drinking_water",
+        "fountain",
+        "picnic_table",
+        "plant",
+        "planter",
+        "post_box",
+    ]
+    parking_keys = [
+        # "bicycle_parking",
+        "motorcycle_parking",
+        "parking",
+    ]
+    transport_keys = [
+        "aerialway_station",
+        "airport",
+        "bus_station",
+        "bus_stop",
+        "ferry_terminal",
+        "helipad",
+        "international_airport",
+        "railway_station",
+        "regional_airport",
+        "seaplane_airport",
+        "subway_station",
+    ]
+    infrast_gdf = gpd.read_postgis(
+        f"""
+        SELECT p.fid, p.class, p.geom
+        FROM overture.overture_infrast p, eu.{bounds_table} b
+        WHERE b.{bounds_fid_col} = {bounds_fid}
+            AND ST_Contains(b.{bounds_geom_col}, p.geom)
+        """,
+        engine,
+        index_col="fid",
+        geom_col="geom",
+    )
+    infrast_gdf["class"] = infrast_gdf["class"].replace(street_furn_keys, "street_furn")  # type: ignore
+    infrast_gdf["class"] = infrast_gdf["class"].replace(parking_keys, "parking")  # type: ignore
+    infrast_gdf["class"] = infrast_gdf["class"].replace(transport_keys, "transport")  # type: ignore
+    landuse_keys = ["street_furn", "parking", "transport"]
+    infrast_gdf = infrast_gdf[infrast_gdf["class"].isin(landuse_keys)]  # type: ignore
+    # compute accessibilities
+    nodes_gdf, infrast_gdf = layers.compute_accessibilities(
+        infrast_gdf,  # type: ignore
+        landuse_column_label="class",
+        accessibility_keys=landuse_keys,
+        nodes_gdf=nodes_gdf,
+        network_structure=network_structure,
+        distances=[100, 500, 1500],
+    )
     # keep only live
     nodes_gdf = nodes_gdf.loc[nodes_gdf.live]
     nodes_gdf.to_postgis(  # type: ignore
@@ -134,7 +187,7 @@ if __name__ == "__main__":
     python -m src.processing.metrics_landuses all
     """
 
-    if False:
+    if True:
         parser = argparse.ArgumentParser(description="Compute landuse metrics.")
         parser.add_argument(
             "bounds_fid",
@@ -151,5 +204,5 @@ if __name__ == "__main__":
         bounds_fids = [636]
         compute_landuse_metrics(
             bounds_fids,
-            drop=False,
+            drop=True,
         )

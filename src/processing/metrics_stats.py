@@ -60,8 +60,6 @@ def process_stats(
             s.same,
             s.chg_in,
             s.chg_out,
-            s.land_surface,
-            s.populated,
             ST_Centroid(s.geom) as cent
         FROM eu.stats s, eu.{bounds_table} b
         WHERE b.{bounds_fid_col} = {bounds_fid}
@@ -88,8 +86,6 @@ def process_stats(
         "same",
         "chg_in",
         "chg_out",
-        "land_surface",
-        "populated",
     ]
     for col in cols:
         grid_values = stats_gdf[col].values  # type: ignore
@@ -163,7 +159,7 @@ if __name__ == "__main__":
     python -m src.processing.metrics_stats all
     """
 
-    if False:
+    if True:
         parser = argparse.ArgumentParser(description="Compute stats metrics.")
         parser.add_argument(
             "bounds_fid",
