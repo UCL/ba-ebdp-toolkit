@@ -31,7 +31,6 @@ def process_green(
             c.x,
             c.y,
             ST_Contains(b.geom, c.geom) as live,
-            c.weight,
             c.geom
         FROM overture.dual_nodes c, eu.{bounds_table} b
         WHERE b.{bounds_fid_col} = {bounds_fid}

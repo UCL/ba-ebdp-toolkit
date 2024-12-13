@@ -15,6 +15,7 @@ logger = tools.get_logger(__name__)
 def process_stats(
     bounds_fid: int,
     bounds_fid_col: str,
+    bounds_geom_col: str,
     bounds_table: str,
     target_schema: str,
     target_table: str,
@@ -63,8 +64,7 @@ def process_stats(
             ST_Centroid(s.geom) as cent
         FROM eu.stats s, eu.{bounds_table} b
         WHERE b.{bounds_fid_col} = {bounds_fid}
-                AND ST_Intersects(b.geom, s.geom)
-                AND ST_Contains(b.geom, ST_Centroid(s.geom));
+                AND ST_Intersects(b.{bounds_geom_col}, s.geom);
         """,
         engine,
         index_col="fid",
@@ -139,6 +139,7 @@ def compute_stats_metrics(
             func_args=[
                 bound_fid,
                 bounds_fid_col,
+                bounds_geom_col,
                 bounds_table,
                 target_schema,
                 target_table,
@@ -176,5 +177,5 @@ if __name__ == "__main__":
         bounds_fids = [636]
         compute_stats_metrics(
             bounds_fids,
-            drop=False,
+            drop=True,
         )

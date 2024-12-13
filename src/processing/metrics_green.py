@@ -28,13 +28,7 @@ Wetlands
 import argparse
 
 import geopandas as gpd
-import numpy as np
-import rasterio
-import scipy.ndimage
-from rasterio.features import rasterize
-from rasterio.io import MemoryFile
-from rasterio.transform import from_origin
-from shapely import geometry
+from cityseer.metrics import layers
 from tqdm import tqdm
 
 from src import tools
@@ -51,36 +45,29 @@ def process_green(
     target_table: str,
 ):
     engine = tools.get_sqlalchemy_engine()
-    nodes_gdf = gpd.read_postgis(
-        f"""
-        SELECT
-            c.fid,
-            c.x,
-            c.y,
-            ST_Contains(b.geom, ST_Centroid(c.primal_edge)) as live,
-            c.weight,
-            c.primal_edge as geom
-        FROM overture.dual_nodes c, eu.{bounds_table} b
-        WHERE b.{bounds_fid_col} = {bounds_fid}
-                AND ST_Intersects(b.geom, c.primal_edge)
-                AND ST_Contains(b.geom, ST_Centroid(c.primal_edge));
-        """,
-        engine,
-        index_col="fid",
-        geom_col="geom",
+    nodes_gdf, edges_gdf, network_structure = tools.load_bounds_fid_network_from_db(
+        engine, bounds_fid, buffer_col=bounds_geom_col
     )
-    if len(nodes_gdf) == 0:  # type: ignore
-        raise OSError(f"No network data for bounds FID: {bounds_fid}")
     # track bounds
     nodes_gdf.loc[:, "bounds_key"] = "bounds"  # type: ignore
     nodes_gdf.loc[:, "bounds_fid"] = bounds_fid  # type: ignore
+
+    # function for extracting points
+    def generate_points(fid, categ, polygon, interval=20, simplify=20):
+        if polygon.is_empty or polygon.exterior.length == 0:
+            return []
+        ring = polygon.exterior.simplify(simplify)
+        num_points = int(ring.length // interval)
+        return [(fid, categ, ring.interpolate(distance)) for distance in range(0, num_points * interval, interval)]
+
     # green spaces
     green_gdf = gpd.read_postgis(
         f"""
         SELECT bl.fid, bl.geom
         FROM eu.blocks bl, eu.{bounds_table} b
         WHERE b.{bounds_fid_col} = {bounds_fid}
-            AND ST_Contains(b.{bounds_geom_col}, bl.geom)
+            -- use intersects to catch overlapping geoms
+            AND ST_Intersects(b.{bounds_geom_col}, bl.geom)
             AND class_2018 in (
                 'Arable land (annual crops)',
                 'Complex and mixed cultivation patterns',
@@ -95,84 +82,71 @@ def process_green(
                 'Water',
                 'Wetlands'
             )
+            AND ST_IsValid(bl.geom)
         """,
         engine,
         index_col="fid",
         geom_col="geom",
     )
-    # trees
+    # trees - simplify
     trees_gdf = gpd.read_postgis(
         f"""
         SELECT t.fid, t.geom
         FROM eu.trees t, eu.{bounds_table} b
         WHERE b.{bounds_fid_col} = {bounds_fid}
-            AND ST_Contains(b.{bounds_geom_col}, t.geom)
+            -- use intersects to catch overlapping geoms
+            AND ST_Intersects(b.{bounds_geom_col}, t.geom)
+            AND ST_IsValid(t.geom)
         """,
         engine,
         index_col="fid",
         geom_col="geom",
     )
-    logger.info("Preparing transform")
-    # buffer bounds
-    bounds = geometry.box(*nodes_gdf.total_bounds).buffer(2000).bounds  # type: ignore
-    pixel_size = 10
-    num_cols = int((bounds[2] - bounds[0]) / pixel_size)
-    num_rows = int((bounds[3] - bounds[1]) / pixel_size)
-    transform = from_origin(bounds[0], bounds[3], pixel_size, pixel_size)
-    # create trees raster
-    for dist in [100, 500]:
-        # prepare kernel
-        cell_dist = np.ceil(dist / pixel_size).astype(int)
-        kernel_size = 2 * cell_dist + 1
-        kernel = np.zeros((kernel_size, kernel_size), dtype=np.uint8)
-        y, x = np.ogrid[-cell_dist : cell_dist + 1, -cell_dist : cell_dist + 1]
-        mask = x**2 + y**2 <= cell_dist**2
-        kernel[mask] = 1
-        # iter GDFs
-        for data_key, data_gdf in [("trees", trees_gdf), ("green", green_gdf)]:
-            logger.info(f"Processing {data_key} at distance {dist}")
-            if len(data_gdf) == 0:
-                nodes_gdf[f"{data_key}_{dist}"] = 0  # type ignore
-                logger.warning(f"Missing data for {data_key} in bounds FID {bounds_fid}")
-                continue
-            logger.info("Burning shapes")
-            with (
-                MemoryFile() as memfile,
-                memfile.open(
-                    driver="GTiff",
-                    height=num_rows,
-                    width=num_cols,
-                    count=1,
-                    dtype=rasterio.uint8,
-                    crs=nodes_gdf.crs,  # type: ignore
-                    transform=transform,
-                ) as burn_rast,
-            ):
-                shapes = ((geom, 1) for geom in data_gdf.geometry)
-                burned = rasterize(shapes=shapes, out_shape=(num_rows, num_cols), transform=transform)
-                burn_rast.write_band(1, burned)
-                logger.info("Convolving distances")
-                with (
-                    MemoryFile() as memfile2,
-                    memfile2.open(
-                        driver="GTiff",
-                        height=num_rows,
-                        width=num_cols,
-                        count=1,
-                        dtype=rasterio.uint32,
-                        crs=nodes_gdf.crs,  # type: ignore
-                        transform=transform,
-                    ) as conv_rast,
-                ):
-                    count_ones = scipy.ndimage.convolve(burned, kernel, mode="constant", cval=0, output=np.uint32)
-                    conv_rast.write_band(1, count_ones)
-                    logger.info("Sampling")
-                    for idx, row in nodes_gdf.iterrows():  # type: ignore
-                        for val in conv_rast.sample([(row.geom.centroid.x, row.geom.centroid.y)]):
-                            # reset area to pixel size then take km2
-                            nodes_gdf.at[idx, f"{data_key}_{dist}"] = (val[0] * pixel_size**2) / 1000**2  # type: ignore
+    # extract points
+    points = []
+    # for green
+    for fid, geom in zip(green_gdf.index, green_gdf.geom, strict=True):  # type: ignore
+        if geom.geom_type == "Polygon":
+            points.extend(generate_points(fid, "green", geom, interval=20, simplify=10))
+    # for trees
+    for fid, geom in zip(trees_gdf.index, trees_gdf.geom, strict=True):  # type: ignore
+        if geom.geom_type == "Polygon":
+            points.extend(generate_points(fid, "trees", geom, interval=20, simplify=5))
+    # create GDF
+    points_gdf = gpd.GeoDataFrame(  # type: ignore
+        points,
+        columns=["fid", "cat", "geometry"],
+        geometry="geometry",
+        crs=trees_gdf.crs,  # type: ignore
+    )
+    points_gdf.index = points_gdf.index.astype(str)
+    # compute accessibilities
+    nodes_gdf, points_gdf = layers.compute_accessibilities(
+        points_gdf,  # type: ignore
+        landuse_column_label="cat",
+        accessibility_keys=["green", "trees"],
+        nodes_gdf=nodes_gdf,
+        network_structure=network_structure,
+        distances=[1500],
+        data_id_col="fid",  # deduplicate
+    )
+    # drop - aggregation columns since these are not meaningful for interpolated aggs - only using distances
+    nodes_gdf = nodes_gdf.drop(
+        columns=[
+            "cc_green_1500_nw",
+            "cc_green_1500_wt",
+            "cc_trees_1500_nw",
+            "cc_trees_1500_wt",
+        ]
+    )
+    # set contained green nodes to zero
+    contained_green_idx = gpd.sjoin(nodes_gdf, green_gdf, predicate="intersects", how="inner")
+    nodes_gdf.loc[contained_green_idx.index, "cc_green_nearest_max_1500"] = 0
+    # same for trees
+    contained_trees_idx = gpd.sjoin(nodes_gdf, trees_gdf, predicate="intersects", how="inner")
+    nodes_gdf.loc[contained_trees_idx.index, "cc_trees_nearest_max_1500"] = 0
     # keep only live
-    nodes_gdf = nodes_gdf.loc[nodes_gdf.live]  # type: ignore
+    nodes_gdf = nodes_gdf.loc[nodes_gdf.live]
     nodes_gdf.to_postgis(  # type: ignore
         target_table,
         engine,
@@ -258,5 +232,5 @@ if __name__ == "__main__":
         bounds_fids = [636]
         compute_green_metrics(
             bounds_fids,
-            drop=False,
+            drop=True,
         )

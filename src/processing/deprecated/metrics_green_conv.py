@@ -58,7 +58,6 @@ def process_green(
             c.x,
             c.y,
             ST_Contains(b.geom, ST_Centroid(c.primal_edge)) as live,
-            c.weight,
             c.primal_edge as geom
         FROM overture.dual_nodes c, eu.{bounds_table} b
         WHERE b.{bounds_fid_col} = {bounds_fid}
@@ -191,14 +190,14 @@ def compute_green_metrics(
         raise OSError("The cleaned network nodes and edges tables need to be created prior to proceeding.")
     logger.info("Computing green metrics")
     tools.prepare_schema("metrics")
-    load_key = "metrics_green"
+    load_key = "metrics_green_conv"
     bounds_schema = "eu"
     # use eu bounds not unioned_bounds - use geom_2000 for geom column
     bounds_table = "bounds"
     bounds_geom_col = "geom_2000"
     bounds_fid_col = "fid"
     target_schema = "metrics"
-    target_table = "green"
+    target_table = "green_conv"
     bounds_fids_geoms = tools.iter_boundaries(bounds_schema, bounds_table, bounds_fid_col, bounds_geom_col, wgs84=False)
     # check fids
     bounds_fids = [big[0] for big in bounds_fids_geoms]

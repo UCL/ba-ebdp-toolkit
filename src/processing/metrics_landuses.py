@@ -34,7 +34,7 @@ def process_landuses(
         SELECT p.fid, p.main_cat, p.geom
         FROM overture.overture_place p, eu.{bounds_table} b
         WHERE b.{bounds_fid_col} = {bounds_fid}
-            AND ST_Contains(b.{bounds_geom_col}, p.geom)
+            AND ST_Intersects(b.{bounds_geom_col}, p.geom)
         """,
         engine,
         index_col="fid",
