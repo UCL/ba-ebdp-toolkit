@@ -494,6 +494,7 @@ def load_bounds_fid_network_from_db(
     engine: sqlalchemy.Engine, bounds_fid: int, buffer_col: str
 ) -> tuple[gpd.GeoDataFrame, gpd.GeoDataFrame, Any]:
     """ """
+    logger.info("Loading nodes")
     # load nodes - i.e. where primal node (centroid of dual segment) is contained
     nodes_gdf: gpd.GeoDataFrame = gpd.read_postgis(  # type: ignore
         f"""
@@ -513,6 +514,7 @@ def load_bounds_fid_network_from_db(
         index_col="fid",
         geom_col="geom",
     )
+    logger.info("Loading edges")
     # load edges where contained - i.e. to connect loaded nodes
     edges_gdf: gpd.GeoDataFrame = gpd.read_postgis(  # type: ignore
         f"""
@@ -539,6 +541,7 @@ def load_bounds_fid_network_from_db(
     )
     if len(nodes_gdf) == 0:
         raise OSError(f"No network data for bounds FID: {bounds_fid}")
+    logger.info("Building network structure")
     network_structure = io.network_structure_from_gpd(nodes_gdf, edges_gdf)
 
     return nodes_gdf, edges_gdf, network_structure

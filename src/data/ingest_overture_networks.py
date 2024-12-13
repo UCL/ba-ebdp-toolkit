@@ -171,7 +171,7 @@ if __name__ == "__main__":
     python -m src.data.ingest_overture_networks all --parallel_workers 4
     """
 
-    if False:
+    if True:
         parser = argparse.ArgumentParser(description="Convert raw Overture nodes and edges to network.")
         parser.add_argument(
             "bounds_fid",

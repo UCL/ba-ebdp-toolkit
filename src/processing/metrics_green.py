@@ -55,15 +55,15 @@ def process_green(
         f"""
         SELECT
             c.fid,
-            c.ns_node_idx,
             c.x,
             c.y,
-            ST_Contains(b.geom, c.geom) as live,
+            ST_Contains(b.geom, ST_Centroid(c.primal_edge)) as live,
             c.weight,
-            c.geom
+            c.primal_edge as geom
         FROM overture.dual_nodes c, eu.{bounds_table} b
         WHERE b.{bounds_fid_col} = {bounds_fid}
-            AND ST_Contains(b.geom, c.geom) -- use bounds no need for buffer
+                AND ST_Intersects(b.geom, c.primal_edge)
+                AND ST_Contains(b.geom, ST_Centroid(c.primal_edge));
         """,
         engine,
         index_col="fid",
@@ -168,9 +168,9 @@ def process_green(
                     conv_rast.write_band(1, count_ones)
                     logger.info("Sampling")
                     for idx, row in nodes_gdf.iterrows():  # type: ignore
-                        for val in conv_rast.sample([(row.geom.x, row.geom.y)]):
+                        for val in conv_rast.sample([(row.geom.centroid.x, row.geom.centroid.y)]):
                             # reset area to pixel size then take km2
-                            nodes_gdf.at[idx, f"{data_key}_{dist}"] = (val[0] * pixel_size**2) / 1000**2
+                            nodes_gdf.at[idx, f"{data_key}_{dist}"] = (val[0] * pixel_size**2) / 1000**2  # type: ignore
     # keep only live
     nodes_gdf = nodes_gdf.loc[nodes_gdf.live]  # type: ignore
     nodes_gdf.to_postgis(  # type: ignore
@@ -255,7 +255,7 @@ if __name__ == "__main__":
             drop=args.drop,
         )
     else:
-        bounds_fids = [15]
+        bounds_fids = [636]
         compute_green_metrics(
             bounds_fids,
             drop=False,

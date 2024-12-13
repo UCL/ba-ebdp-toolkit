@@ -4,9 +4,7 @@ import argparse
 
 import geopandas as gpd
 import numpy as np
-from rasterio.enums import Resampling
-from rasterio.io import MemoryFile
-from rasterstats import point_query
+from scipy.interpolate import griddata
 from tqdm import tqdm
 
 from src import tools
@@ -14,7 +12,7 @@ from src import tools
 logger = tools.get_logger(__name__)
 
 
-def process_population(
+def process_stats(
     bounds_fid: int,
     bounds_fid_col: str,
     bounds_table: str,
@@ -26,15 +24,14 @@ def process_population(
         f"""
         SELECT
             c.fid,
-            c.ns_node_idx,
             c.x,
             c.y,
-            ST_Contains(b.geom, c.geom) as live,
-            c.weight,
-            c.geom
+            ST_Contains(b.geom, ST_Centroid(c.primal_edge)) as live,
+            c.primal_edge as geom
         FROM overture.dual_nodes c, eu.{bounds_table} b
         WHERE b.{bounds_fid_col} = {bounds_fid}
-            AND ST_Contains(b.geom, c.geom) -- use bounds no need for buffer
+                AND ST_Intersects(b.geom, c.primal_edge)
+                AND ST_Contains(b.geom, ST_Centroid(c.primal_edge));
         """,
         engine,
         index_col="fid",
@@ -45,52 +42,58 @@ def process_population(
     # track bounds
     nodes_gdf.loc[:, "bounds_key"] = "bounds"  # type: ignore
     nodes_gdf.loc[:, "bounds_fid"] = bounds_fid  # type: ignore
-    # fetch population raster for boundary
-    pop_raster = tools.db_fetch(
+    # fetch stats
+    stats_gdf = gpd.read_postgis(
         f"""
-        WITH bounds AS (
-            SELECT geom
-            FROM eu.{bounds_table}
-            WHERE {bounds_fid_col} = {bounds_fid}
-        ), rasters AS (
-            SELECT rast 
-            FROM eu.pop_dens, bounds as b
-            WHERE ST_Intersects(rast, b.geom)
-        ), mosaic AS (
-            SELECT ST_Union(rasters.rast) as merged 
-            FROM rasters
-        )
-        SELECT ST_AsTiff(ST_Clip(m.merged, b.geom))
-            FROM mosaic m, bounds as b
-            LIMIT 1;
-        """
-    )[0][0]
-    upscale_factor = 10
-    if pop_raster is None:
-        nodes_gdf["pop_dens"] = np.nan  # type: ignore
-    else:
-        with MemoryFile(pop_raster) as memfile, memfile.open() as dataset:
-            # rea
-            data = dataset.read(
-                out_shape=(
-                    dataset.count,
-                    int(dataset.height * upscale_factor),
-                    int(dataset.width * upscale_factor),
-                ),
-                resampling=Resampling.bilinear,
-            )
-            # Update the transform to reflect the new shape
-            old_trf = dataset.transform
-            new_trf = old_trf * old_trf.scale((dataset.width / data.shape[-1]), (dataset.height / data.shape[-2]))
-            for node_idx, node_row in tqdm(nodes_gdf.iterrows(), total=len(nodes_gdf)):  # type: ignore
-                pop_val = point_query(
-                    node_row["geom"],
-                    data,
-                    interpolate="nearest",
-                    affine=new_trf,
-                    nodata=np.nan,
-                )
-                nodes_gdf.loc[node_idx, "pop_dens"] = np.clip(pop_val, 0, np.inf)[0]  # type: ignore
+        SELECT
+            s.fid,
+            s.t,
+            s.m,
+            s.f,
+            s.y_lt15,
+            s.y_1564,
+            s.y_ge65,
+            s.emp,
+            s.nat,
+            s.eu_oth,
+            s.oth,
+            s.same,
+            s.chg_in,
+            s.chg_out,
+            s.land_surface,
+            s.populated,
+            ST_Centroid(s.geom) as cent
+        FROM eu.stats s, eu.{bounds_table} b
+        WHERE b.{bounds_fid_col} = {bounds_fid}
+                AND ST_Intersects(b.geom, s.geom)
+                AND ST_Contains(b.geom, ST_Centroid(s.geom));
+        """,
+        engine,
+        index_col="fid",
+        geom_col="cent",
+    )
+    grid_coords = np.array([(point.x, point.y) for point in stats_gdf.cent])  # type: ignore
+    target_coords = np.column_stack((nodes_gdf.x, nodes_gdf.y))  # type: ignore
+    cols = [
+        "t",
+        "m",
+        "f",
+        "y_lt15",
+        "y_1564",
+        "y_ge65",
+        "emp",
+        "nat",
+        "eu_oth",
+        "oth",
+        "same",
+        "chg_in",
+        "chg_out",
+        "land_surface",
+        "populated",
+    ]
+    for col in cols:
+        grid_values = stats_gdf[col].values  # type: ignore
+        nodes_gdf[col] = griddata(grid_coords, grid_values, target_coords, method="cubic")  # type: ignore
     # keep only live
     nodes_gdf = nodes_gdf.loc[nodes_gdf.live]  # type: ignore
     nodes_gdf.to_postgis(  # type: ignore
@@ -103,22 +106,22 @@ def process_population(
     )
 
 
-def compute_population_metrics(
+def compute_stats_metrics(
     target_bounds_fids: list[int] | str,
     drop: bool = False,
 ):
     if not (tools.check_table_exists("overture", "dual_nodes") and tools.check_table_exists("overture", "dual_edges")):
         raise OSError("The cleaned network nodes and edges tables need to be created prior to proceeding.")
-    logger.info("Computing population metrics")
+    logger.info("Computing stats metrics")
     tools.prepare_schema("metrics")
-    load_key = "metrics_population"
+    load_key = "metrics_stats"
     bounds_schema = "eu"
     # use eu bounds not unioned_bounds - use geom_2000 for geom column
     bounds_table = "bounds"
     bounds_geom_col = "geom_2000"
     bounds_fid_col = "fid"
     target_schema = "metrics"
-    target_table = "population"
+    target_table = "stats"
     bounds_fids_geoms = tools.iter_boundaries(bounds_schema, bounds_table, bounds_fid_col, bounds_geom_col, wgs84=False)
     # check fids
     bounds_fids = [big[0] for big in bounds_fids_geoms]
@@ -136,7 +139,7 @@ def compute_population_metrics(
         tools.process_func_with_bound_tracking(
             bound_fid=bound_fid,
             load_key=load_key,
-            core_function=process_population,
+            core_function=process_stats,
             func_args=[
                 bound_fid,
                 bounds_fid_col,
@@ -157,11 +160,11 @@ def compute_population_metrics(
 if __name__ == "__main__":
     """
     Examples are run from the project folder (the folder containing src)
-    python -m src.processing.metrics_population all
+    python -m src.processing.metrics_stats all
     """
 
-    if True:
-        parser = argparse.ArgumentParser(description="Compute population metrics.")
+    if False:
+        parser = argparse.ArgumentParser(description="Compute stats metrics.")
         parser.add_argument(
             "bounds_fid",
             type=tools.bounds_fid_type,
@@ -169,13 +172,13 @@ if __name__ == "__main__":
         )
         parser.add_argument("--drop", action="store_true", help="Whether to drop existing tables.")
         args = parser.parse_args()
-        compute_population_metrics(
+        compute_stats_metrics(
             args.bounds_fid,
             drop=args.drop,
         )
     else:
-        bounds_fids = [517]
-        compute_population_metrics(
+        bounds_fids = [636]
+        compute_stats_metrics(
             bounds_fids,
             drop=False,
         )

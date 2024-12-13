@@ -4,7 +4,6 @@ import argparse
 
 import geopandas as gpd
 from cityseer.metrics import layers
-from cityseer.tools import io
 from tqdm import tqdm
 
 from src import tools
@@ -23,18 +22,17 @@ def process_landuses(
     target_table: str,
 ):
     engine = tools.get_sqlalchemy_engine()
-    multigraph = tools.load_bounds_fid_network_from_db(engine, bounds_fid, buffer_col=bounds_geom_col)
-    if len(multigraph) == 0:
-        raise OSError(f"No network data for bounds FID: {bounds_fid}")
-    nodes_gdf, _edges_gdf, network_structure = io.network_structure_from_nx(multigraph, crs=3035)
+    nodes_gdf, edges_gdf, network_structure = tools.load_bounds_fid_network_from_db(
+        engine, bounds_fid, buffer_col=bounds_geom_col
+    )
     # track bounds
     nodes_gdf.loc[:, "bounds_key"] = "bounds"
     nodes_gdf.loc[:, "bounds_fid"] = bounds_fid
     # POI
     places_gdf = gpd.read_postgis(
         f"""
-        SELECT p.fid, p.major_cat, p.geom
-        FROM overture.overture_places p, eu.{bounds_table} b
+        SELECT p.fid, p.main_cat, p.geom
+        FROM overture.overture_place p, eu.{bounds_table} b
         WHERE b.{bounds_fid_col} = {bounds_fid}
             AND ST_Contains(b.{bounds_geom_col}, p.geom)
         """,
@@ -46,14 +44,14 @@ def process_landuses(
     landuse_keys = list(OVERTURE_SCHEMA.keys())
     # remove structure and geography category
     landuse_keys.remove("structure_and_geography")
-    places_gdf = places_gdf[places_gdf["major_cat"] != "structure_and_geography"]  # type: ignore
+    places_gdf = places_gdf[places_gdf["main_cat"] != "structure_and_geography"]  # type: ignore
     # remove mass_media category
     landuse_keys.remove("mass_media")
-    places_gdf = places_gdf[places_gdf["major_cat"] != "mass_media"]  # type: ignore
+    places_gdf = places_gdf[places_gdf["main_cat"] != "mass_media"]  # type: ignore
     # compute accessibilities
     nodes_gdf, places_gdf = layers.compute_accessibilities(
         places_gdf,  # type: ignore
-        landuse_column_label="major_cat",
+        landuse_column_label="main_cat",
         accessibility_keys=landuse_keys,
         nodes_gdf=nodes_gdf,
         network_structure=network_structure,
@@ -61,7 +59,7 @@ def process_landuses(
     )
     nodes_gdf, places_gdf = layers.compute_mixed_uses(
         places_gdf,
-        landuse_column_label="major_cat",
+        landuse_column_label="main_cat",
         nodes_gdf=nodes_gdf,
         network_structure=network_structure,
         distances=[100, 500, 1500],
@@ -136,7 +134,7 @@ if __name__ == "__main__":
     python -m src.processing.metrics_landuses all
     """
 
-    if True:
+    if False:
         parser = argparse.ArgumentParser(description="Compute landuse metrics.")
         parser.add_argument(
             "bounds_fid",
@@ -150,7 +148,7 @@ if __name__ == "__main__":
             drop=args.drop,
         )
     else:
-        bounds_fids = [0]
+        bounds_fids = [636]
         compute_landuse_metrics(
             bounds_fids,
             drop=False,
