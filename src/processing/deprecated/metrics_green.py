@@ -1,17 +1,39 @@
 """
-This method is replaced with the rasterised -> convolution method for performance.
+Airports
+Arable land (annual crops)
+Complex and mixed cultivation patterns
+Construction sites
+Continuous urban fabric (S.L. : > 80%)
+Discontinuous dense urban fabric (S.L. : 50% -  80%)
+Discontinuous low density urban fabric (S.L. : 10% - 30%)
+Discontinuous medium density urban fabric (S.L. : 30% - 50%)
+Discontinuous very low density urban fabric (S.L. : < 10%)
+Forests
+Green urban areas
+Herbaceous vegetation associations (natural grassland, moors...)
+Industrial, commercial, public, military and private units
+Isolated structures
+Land without current use
+Mineral extraction and dump sites
+Open spaces with little or no vegetation (beaches, dunes, bare rocks, glaciers)
+Orchards at the fringe of urban classes
+Pastures
+Permanent crops (vineyards, fruit trees, olive groves)
+Port areas
+Sports and leisure facilities
+Water
+Wetlands
 """
 
 import argparse
 
 import geopandas as gpd
+from cityseer.metrics import layers
 from tqdm import tqdm
 
 from src import tools
 
 logger = tools.get_logger(__name__)
-
-OVERTURE_SCHEMA = tools.generate_overture_schema()
 
 
 def process_green(
@@ -23,45 +45,29 @@ def process_green(
     target_table: str,
 ):
     engine = tools.get_sqlalchemy_engine()
-    nodes_gdf = gpd.read_postgis(
-        f"""
-        SELECT
-            c.fid,
-            c.ns_node_idx,
-            c.x,
-            c.y,
-            ST_Contains(b.geom, c.geom) as live,
-            c.geom
-        FROM overture.dual_nodes c, eu.{bounds_table} b
-        WHERE b.{bounds_fid_col} = {bounds_fid}
-            AND ST_Contains(b.geom, c.geom) -- use bounds no need for buffer
-        """,
-        engine,
-        index_col="fid",
-        geom_col="geom",
+    nodes_gdf, edges_gdf, network_structure = tools.load_bounds_fid_network_from_db(
+        engine, bounds_fid, buffer_col=bounds_geom_col
     )
     # track bounds
-    nodes_gdf.loc[:, "bounds_key"] = "bounds"
-    nodes_gdf.loc[:, "bounds_fid"] = bounds_fid
+    nodes_gdf.loc[:, "bounds_key"] = "bounds"  # type: ignore
+    nodes_gdf.loc[:, "bounds_fid"] = bounds_fid  # type: ignore
+
+    # function for extracting points
+    def generate_points(fid, categ, polygon, interval=20, simplify=20):
+        if polygon.is_empty or polygon.exterior.length == 0:
+            return []
+        ring = polygon.exterior.simplify(simplify)
+        num_points = int(ring.length // interval)
+        return [(fid, categ, ring.interpolate(distance)) for distance in range(0, num_points * interval, interval)]
+
     # green spaces
-    trees_gdf = gpd.read_postgis(
-        f"""
-        SELECT t.fid, t.geom
-        FROM eu.trees t, eu.{bounds_table} b
-        WHERE b.{bounds_fid_col} = {bounds_fid}
-            AND ST_Contains(b.{bounds_geom_col}, t.geom)
-        """,
-        engine,
-        index_col="fid",
-        geom_col="geom",
-    )
-    # trees
     green_gdf = gpd.read_postgis(
         f"""
         SELECT bl.fid, bl.geom
         FROM eu.blocks bl, eu.{bounds_table} b
         WHERE b.{bounds_fid_col} = {bounds_fid}
-            AND ST_Contains(b.{bounds_geom_col}, bl.geom)
+            -- use intersects to catch overlapping geoms
+            AND ST_Intersects(b.{bounds_geom_col}, bl.geom)
             AND class_2018 in (
                 'Arable land (annual crops)',
                 'Complex and mixed cultivation patterns',
@@ -76,26 +82,69 @@ def process_green(
                 'Water',
                 'Wetlands'
             )
+            AND ST_IsValid(bl.geom)
         """,
         engine,
         index_col="fid",
         geom_col="geom",
     )
-    logger.info("Creating unary trees geom")
-    tree_cover_unary = trees_gdf.geometry.unary_union.simplify(5)
-    logger.info("Creating unary green spaces geom")
-    green_space_unary = green_gdf.geometry.unary_union.simplify(5)
-    for dist in [100, 500]:
-        logger.info(f"Processing distance: {dist}")
-        # Buffer the nodes
-        nodes_gdf[f"geom_{dist}"] = nodes_gdf["geom"].apply(lambda x: x.buffer(dist))
-        for node_idx, node_row in tqdm(nodes_gdf.iterrows(), total=len(nodes_gdf)):
-            # intersect with the unary geoms
-            nodes_gdf.loc[node_idx, f"tree_cover_{dist}"] = node_row[f"geom_{dist}"].intersection(tree_cover_unary).area
-            nodes_gdf.loc[node_idx, f"green_space_{dist}"] = (
-                node_row[f"geom_{dist}"].intersection(green_space_unary).area
-            )
-        nodes_gdf.drop(columns=[f"geom_{dist}"], inplace=True)
+    # trees - simplify
+    trees_gdf = gpd.read_postgis(
+        f"""
+        SELECT t.fid, t.geom
+        FROM eu.trees t, eu.{bounds_table} b
+        WHERE b.{bounds_fid_col} = {bounds_fid}
+            -- use intersects to catch overlapping geoms
+            AND ST_Intersects(b.{bounds_geom_col}, t.geom)
+            AND ST_IsValid(t.geom)
+        """,
+        engine,
+        index_col="fid",
+        geom_col="geom",
+    )
+    # extract points
+    points = []
+    # for green
+    for fid, geom in zip(green_gdf.index, green_gdf.geom, strict=True):  # type: ignore
+        if geom.geom_type == "Polygon":
+            points.extend(generate_points(fid, "green", geom, interval=20, simplify=10))
+    # for trees
+    for fid, geom in zip(trees_gdf.index, trees_gdf.geom, strict=True):  # type: ignore
+        if geom.geom_type == "Polygon":
+            points.extend(generate_points(fid, "trees", geom, interval=20, simplify=5))
+    # create GDF
+    points_gdf = gpd.GeoDataFrame(  # type: ignore
+        points,
+        columns=["fid", "cat", "geometry"],
+        geometry="geometry",
+        crs=trees_gdf.crs,  # type: ignore
+    )
+    points_gdf.index = points_gdf.index.astype(str)
+    # compute accessibilities
+    nodes_gdf, points_gdf = layers.compute_accessibilities(
+        points_gdf,  # type: ignore
+        landuse_column_label="cat",
+        accessibility_keys=["green", "trees"],
+        nodes_gdf=nodes_gdf,
+        network_structure=network_structure,
+        distances=[1500],
+        data_id_col="fid",  # deduplicate
+    )
+    # drop - aggregation columns since these are not meaningful for interpolated aggs - only using distances
+    nodes_gdf = nodes_gdf.drop(
+        columns=[
+            "cc_green_1500_nw",
+            "cc_green_1500_wt",
+            "cc_trees_1500_nw",
+            "cc_trees_1500_wt",
+        ]
+    )
+    # set contained green nodes to zero
+    contained_green_idx = gpd.sjoin(nodes_gdf, green_gdf, predicate="intersects", how="inner")
+    nodes_gdf.loc[contained_green_idx.index, "cc_green_nearest_max_1500"] = 0
+    # same for trees
+    contained_trees_idx = gpd.sjoin(nodes_gdf, trees_gdf, predicate="intersects", how="inner")
+    nodes_gdf.loc[contained_trees_idx.index, "cc_trees_nearest_max_1500"] = 0
     # keep only live
     nodes_gdf = nodes_gdf.loc[nodes_gdf.live]
     nodes_gdf.to_postgis(  # type: ignore
@@ -112,10 +161,7 @@ def compute_green_metrics(
     target_bounds_fids: list[int] | str,
     drop: bool = False,
 ):
-    if not (
-        tools.check_table_exists("overture", "dual_nodes")
-        and tools.check_table_exists("overture", "dual_edges")
-    ):
+    if not (tools.check_table_exists("overture", "dual_nodes") and tools.check_table_exists("overture", "dual_edges")):
         raise OSError("The cleaned network nodes and edges tables need to be created prior to proceeding.")
     logger.info("Computing green metrics")
     tools.prepare_schema("metrics")
@@ -169,7 +215,7 @@ if __name__ == "__main__":
     python -m src.processing.metrics_green all
     """
 
-    if False:
+    if True:
         parser = argparse.ArgumentParser(description="Compute green space and tree metrics.")
         parser.add_argument(
             "bounds_fid",
@@ -183,7 +229,7 @@ if __name__ == "__main__":
             drop=args.drop,
         )
     else:
-        bounds_fids = [0]
+        bounds_fids = [636]
         compute_green_metrics(
             bounds_fids,
             drop=True,

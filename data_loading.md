@@ -106,30 +106,6 @@ Network (cleaned) - in this case there is an optional parallel workers argument:
 python -m src.data.ingest_overture_networks all --parallel_workers 4
 ```
 
-## Metrics
-
-Once the datasets are uploaded, boundaries extracted, and networks prepared, it is possible to start computing the metrics.
-
-Centrality:
-
-`python -m src.processing.metrics_centrality all`
-
-Green space and trees:
-
-`python -m src.processing.metrics_green all`
-
-Landuses:
-
-`python -m src.processing.metrics_landuses all`
-
-Population:
-
-`python -m src.processing.metrics_population all`
-
-Building and block morphologies:
-
-`python -m src.processing.metrics_morphology all`
-
 ### Building Heights
 
 [Digital Height Model](https://land.copernicus.eu/local/urban-atlas/building-height-2012) (~ 1GB raster).
@@ -140,49 +116,8 @@ Building and block morphologies:
 python -m src.data.load_bldg_hts_raster "./temp/Digital height Model EU" --bin_path /Applications/Postgres.app/Contents/Versions/15/bin/
 ```
 
-Set building heights via SQL:
+## Metrics
 
-```sql
-ALTER TABLE overture.overture_buildings ADD COLUMN rast_ht real;
+Once the datasets are uploaded, boundaries extracted, and networks prepared, it becomes possible to compute the metrics.
 
--- Update rast_ht with average raster value where raster intersects building geometry
-UPDATE overture.overture_buildings p
-SET rast_ht = (
-    -- Calculate the average raster value from clipped raster
-    SELECT AVG(val)
-    FROM (
-        SELECT ST_Value(clipped_rast.rast, x.geom) AS val
-        FROM (
-            -- Clip raster to building geometry
-            SELECT ST_Clip(r.rast, p.geom) AS rast
-            FROM eu.bldg_hts r
-            WHERE ST_Intersects(r.rast, p.geom)
-        ) clipped_rast,
-        -- Convert clipped raster to points
-        LATERAL ST_PixelAsPoints(clipped_rast.rast) x
-    ) subquery
-)
-WHERE EXISTS (
-    SELECT 1
-    FROM eu.bldg_hts r
-    WHERE ST_Intersects(r.rast, p.geom)
-);
-
--- Step 1: Find the nearest building with a non-NULL rast_ht for each building with NULL rast_ht
-WITH nearest_building AS (
-    SELECT
-        p.fid AS target_fid,  -- Target building (with NULL rast_ht)
-        nb.fid AS nearest_fid,  -- Nearest adjacent building
-        nb.rast_ht AS nearest_rast_ht
-    FROM overture.overture_buildings p
-    JOIN overture.overture_buildings nb ON nb.rast_ht IS NOT NULL  -- Only consider buildings with valid rast_ht
-    WHERE p.rast_ht IS NULL  -- Only update buildings where rast_ht is NULL
-    ORDER BY ST_Distance(p.geom, nb.geom)  -- Order by distance to find the nearest building
-    LIMIT 1  -- Only pick the closest building
-)
--- Step 2: Update rast_ht for the buildings with NULL rast_ht based on the nearest building's rast_ht
-UPDATE overture.overture_buildings p
-SET rast_ht = nb.nearest_rast_ht
-FROM nearest_building nb
-WHERE p.fid = nb.target_fid;
-```
+`python -m src.processing.generate_metrics all`
