@@ -141,18 +141,20 @@ def process_blocks_buildings(
                     heights.append(np.nan)
         bldgs_gdf["mean_height"] = heights
         # bldg metrics
-        bldgs_gdf["area"] = momepy.Area(bldgs_gdf).series
-        bldgs_gdf["perimeter"] = momepy.Perimeter(bldgs_gdf).series
-        bldgs_gdf["compactness"] = momepy.CircularCompactness(bldgs_gdf, "area").series
-        bldgs_gdf["orientation"] = momepy.Orientation(bldgs_gdf).series
+        area = bldgs_gdf.area
+        ht = bldgs_gdf.loc[:, "mean_height"]
+        bldgs_gdf["area"] = area
+        bldgs_gdf["perimeter"] = bldgs_gdf.length
+        bldgs_gdf["compactness"] = momepy.circular_compactness(bldgs_gdf)
+        bldgs_gdf["orientation"] = momepy.orientation(bldgs_gdf)
         # height-based metrics
-        bldgs_gdf["volume"] = momepy.Volume(bldgs_gdf, "mean_height").series
-        bldgs_gdf["floor_area_ratio"] = momepy.FloorArea(bldgs_gdf, "mean_height", "area").series
-        bldgs_gdf["form_factor"] = momepy.FormFactor(bldgs_gdf, "mean_height", "area", "perimeter").series
+        bldgs_gdf["volume"] = momepy.volume(area, ht)
+        bldgs_gdf["floor_area_ratio"] = momepy.floor_area(area, ht, 3)
+        bldgs_gdf["form_factor"] = momepy.form_factor(bldgs_gdf, ht)
         # complexity metrics
-        bldgs_gdf["corners"] = momepy.Corners(bldgs_gdf).series
-        bldgs_gdf["shape_index"] = momepy.ShapeIndex(bldgs_gdf, "area", "perimeter").series
-        bldgs_gdf["fractal_dimension"] = momepy.FractalDimension(bldgs_gdf, "area", "perimeter").series
+        bldgs_gdf["corners"] = momepy.corners(bldgs_gdf)
+        bldgs_gdf["shape_index"] = momepy.shape_index(bldgs_gdf)
+        bldgs_gdf["fractal_dimension"] = momepy.fractal_dimension(bldgs_gdf)
     # calculate
     bldgs_gdf["centroid"] = bldgs_gdf.geometry.centroid
     bldgs_gdf.set_geometry("centroid", inplace=True)
@@ -192,10 +194,10 @@ def process_blocks_buildings(
     # block metrics
     if not blocks_gdf.empty:
         blocks_gdf.index = blocks_gdf.index.astype(str)
-        blocks_gdf["block_area"] = momepy.Area(blocks_gdf).series
-        blocks_gdf["block_perimeter"] = momepy.Perimeter(blocks_gdf).series
-        blocks_gdf["block_compactness"] = momepy.CircularCompactness(blocks_gdf, "block_area").series
-        blocks_gdf["block_orientation"] = momepy.Orientation(blocks_gdf).series
+        blocks_gdf["block_area"] = blocks_gdf.area
+        blocks_gdf["block_perimeter"] = blocks_gdf.length
+        blocks_gdf["block_compactness"] = momepy.circular_compactness(blocks_gdf)
+        blocks_gdf["block_orientation"] = momepy.orientation(blocks_gdf)
     # joint metrics require spatial join
     if not blocks_gdf.empty and not bldgs_gdf.empty:
         blocks_gdf["index_bl"] = blocks_gdf.index.values
