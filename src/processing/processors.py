@@ -6,6 +6,7 @@ import numpy as np
 from cityseer.metrics import layers, networks
 from rasterio.io import MemoryFile
 from rasterio.mask import mask
+from tqdm import tqdm
 
 from src import tools
 
@@ -101,7 +102,7 @@ def process_blocks_buildings(
     nodes_gdf: gpd.GeoDataFrame,
     bldgs_gdf: gpd.GeoDataFrame,
     blocks_gdf: gpd.GeoDataFrame,
-    raster_bytes: bytes,
+    raster_bytes: bytes | None,
     network_structure,
 ) -> tuple[gpd.GeoDataFrame, gpd.GeoDataFrame, gpd.GeoDataFrame]:
     """ """
@@ -119,27 +120,30 @@ def process_blocks_buildings(
         "shape_index",
         "fractal_dimension",
     ]:
-        bldgs_gdf.loc[:, col_key] = np.nan
+        bldgs_gdf[col_key] = np.nan
     if not bldgs_gdf.empty:
         # explode
         bldgs_gdf = bldgs_gdf.explode(index_parts=False)  # type: ignore
         bldgs_gdf.reset_index(drop=True, inplace=True)
         bldgs_gdf.index = bldgs_gdf.index.astype(str)
         # sample heights
-        heights = []
-        with MemoryFile(raster_bytes) as memfile:
-            rast_data = memfile.open()
-            for _idx, bldg_row in bldgs_gdf.iterrows():
-                try:
-                    # raster values within building polygon
-                    out_image, _ = mask(rast_data, [bldg_row.geom.buffer(5)], crop=True)
-                    # mean height, excluding nodata values
-                    valid_pixels = out_image[0][out_image[0] != rast_data.nodata]
-                    mean_height = np.mean(valid_pixels) if len(valid_pixels) > 0 else np.nan
-                    heights.append(mean_height)
-                except ValueError:
-                    heights.append(np.nan)
-        bldgs_gdf["mean_height"] = heights
+        if raster_bytes is None:
+            bldgs_gdf["mean_height"] = np.nan
+        else:
+            logger.info("Sampling building heights")
+            heights = []
+            with MemoryFile(raster_bytes) as memfile, memfile.open() as rast_data:
+                for _idx, bldg_row in tqdm(bldgs_gdf.iterrows(), total=len(bldgs_gdf)):
+                    try:
+                        # raster values within building polygon
+                        out_image, _ = mask(rast_data, [bldg_row.geom.buffer(5)], crop=True)
+                        # mean height, excluding nodata values
+                        valid_pixels = out_image[0][out_image[0] != rast_data.nodata]
+                        mean_height = np.mean(valid_pixels) if len(valid_pixels) > 0 else np.nan
+                        heights.append(mean_height)
+                    except ValueError:
+                        heights.append(np.nan)
+            bldgs_gdf["mean_height"] = heights
         # bldg metrics
         area = bldgs_gdf.area
         ht = bldgs_gdf.loc[:, "mean_height"]
@@ -190,7 +194,7 @@ def process_blocks_buildings(
         "block_orientation",
         "block_covered_ratio",
     ]:
-        blocks_gdf.loc[:, col_key] = np.nan
+        blocks_gdf[col_key] = np.nan
     # block metrics
     if not blocks_gdf.empty:
         blocks_gdf.index = blocks_gdf.index.astype(str)
@@ -224,7 +228,7 @@ def process_blocks_buildings(
     # reset geometry
     bldgs_gdf.set_geometry("geom", inplace=True)
     blocks_gdf.set_geometry("geom", inplace=True)
-    #
+
     return nodes_gdf, bldgs_gdf, blocks_gdf
 
 

@@ -197,7 +197,7 @@ def generate_metrics(
         "chg_in",
         "chg_out",
     ]
-    for col in cols:
+    for col in tqdm(cols):
         grid_values = stats_gdf[col].values  # type: ignore
         nodes_gdf[col] = griddata(grid_coords, grid_values, target_coords, method="cubic")  # type: ignore
     # keep only live
