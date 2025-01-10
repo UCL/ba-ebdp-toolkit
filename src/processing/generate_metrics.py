@@ -87,8 +87,8 @@ def generate_metrics(
     nodes_gdf, bldgs_gdf, blocks_gdf = processors.process_blocks_buildings(
         nodes_gdf, bldgs_gdf, blocks_gdf, raster_bytes, network_structure
     )
-    bldgs_gdf.loc[:, "bounds_key"] = "bounds"
-    bldgs_gdf.loc[:, "bounds_fid"] = bounds_fid
+    bldgs_gdf["bounds_key"] = "bounds"
+    bldgs_gdf["bounds_fid"] = bounds_fid
     bldgs_gdf.to_postgis(
         target_bldgs_table,
         engine,
@@ -97,8 +97,8 @@ def generate_metrics(
         index=True,
         index_label="fid",
     )
-    blocks_gdf.loc[:, "bounds_key"] = "bounds"
-    blocks_gdf.loc[:, "bounds_fid"] = bounds_fid
+    blocks_gdf["bounds_key"] = "bounds"
+    blocks_gdf["bounds_fid"] = bounds_fid
     blocks_gdf.to_postgis(
         target_blocks_table,
         engine,
@@ -201,8 +201,8 @@ def generate_metrics(
         grid_values = stats_gdf[col].values  # type: ignore
         nodes_gdf[col] = griddata(grid_coords, grid_values, target_coords, method="cubic")  # type: ignore
     # keep only live
-    nodes_gdf.loc[:, "bounds_key"] = "bounds"
-    nodes_gdf.loc[:, "bounds_fid"] = bounds_fid
+    nodes_gdf["bounds_key"] = "bounds"
+    nodes_gdf["bounds_fid"] = bounds_fid
     nodes_gdf = nodes_gdf.loc[nodes_gdf.live]
     nodes_gdf.to_postgis(  # type: ignore
         target_nodes_table,
