@@ -29,3 +29,7 @@ The Overture Maps data source is licensed [Community Data License Agreement – 
 
 - [https://handbook.geospatial.psu.edu/sites/default/files/capstone/Stratman_Capstone_Final_Paper_20150503.pdf]()
 - [https://www.nature.com/articles/s41467-023-39698-6]()
+
+## GeoParquet
+
+Official QGIS Mac distributions will recieve GeoParquet support in Spring 2025 (when bundled package dependencies are updated). Until then, versions supporting GeoParquet can be downloaded from: https://github.com/opengisch/qgis-conda-builder/releases
