@@ -240,5 +240,6 @@ if __name__ == "__main__":
     """ """
     # prepare_data_takeoffs("nicosia", 105, 119)
     # prepare_data_takeoffs("madrid", 6, 7)
+    prepare_metrics_takeoffs("madrid", 601)
     # prepare_metrics_takeoffs("berlin", 100)
-    prepare_metrics_parquet(list(range(1, 201)), "temp")
+    # prepare_metrics_parquet(list(range(1, 201)), "temp")
