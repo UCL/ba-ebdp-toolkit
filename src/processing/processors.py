@@ -162,7 +162,7 @@ def process_blocks_buildings(
     # calculate
     bldgs_gdf["centroid"] = bldgs_gdf.geometry.centroid
     bldgs_gdf.set_geometry("centroid", inplace=True)
-    for col_key in [
+    bldg_stats_cols = [
         "area",
         "perimeter",
         "compactness",
@@ -173,17 +173,18 @@ def process_blocks_buildings(
         "corners",
         "shape_index",
         "fractal_dimension",
-    ]:
-        nodes_gdf, bldgs_gdf = layers.compute_stats(
-            data_gdf=bldgs_gdf,
-            stats_column_label=col_key,
-            nodes_gdf=nodes_gdf,
-            network_structure=network_structure,
-            distances=[100, 500, 1500],
-        )
+    ]
+    nodes_gdf, bldgs_gdf = layers.compute_stats(
+        data_gdf=bldgs_gdf,
+        stats_column_labels=bldg_stats_cols,
+        nodes_gdf=nodes_gdf,
+        network_structure=network_structure,
+        distances=[100, 500, 1500],
+    )
+    for bldg_stats_col in bldg_stats_cols:
         trim_columns = []
         for column_name in nodes_gdf.columns:
-            if col_key in column_name and not column_name.startswith(f"cc_{col_key}_mean"):
+            if bldg_stats_col in column_name and not column_name.startswith(f"cc_{bldg_stats_col}_mean"):
                 trim_columns.append(column_name)
         nodes_gdf.drop(columns=trim_columns, inplace=True)
     # placeholders
@@ -212,17 +213,24 @@ def process_blocks_buildings(
     # calculate
     blocks_gdf["centroid"] = blocks_gdf.geometry.centroid
     blocks_gdf.set_geometry("centroid", inplace=True)
-    for col_key in ["block_area", "block_perimeter", "block_compactness", "block_orientation", "block_covered_ratio"]:
-        nodes_gdf, blocks_gdf = layers.compute_stats(
-            data_gdf=blocks_gdf,
-            stats_column_label=col_key,
-            nodes_gdf=nodes_gdf,
-            network_structure=network_structure,
-            distances=[100, 500, 1500],
-        )
+    block_stats_cols = [
+        "block_area",
+        "block_perimeter",
+        "block_compactness",
+        "block_orientation",
+        "block_covered_ratio",
+    ]
+    nodes_gdf, blocks_gdf = layers.compute_stats(
+        data_gdf=blocks_gdf,
+        stats_column_labels=block_stats_cols,
+        nodes_gdf=nodes_gdf,
+        network_structure=network_structure,
+        distances=[100, 500, 1500],
+    )
+    for block_stats_col in block_stats_cols:
         trim_columns = []
         for column_name in nodes_gdf.columns:
-            if col_key in column_name and not column_name.startswith(f"cc_{col_key}_mean"):
+            if block_stats_col in column_name and not column_name.startswith(f"cc_{block_stats_col}_mean"):
                 trim_columns.append(column_name)
         nodes_gdf.drop(columns=trim_columns, inplace=True)
     # reset geometry
