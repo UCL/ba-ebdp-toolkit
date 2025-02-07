@@ -245,6 +245,6 @@ FROM
 ```bash
 export PGPASSWORD='your_password'
 ogr2ogr -f Parquet t2e_metrics.parquet \
-    PG:"host=your_host dbname=your_db user=your_user" \
+    PG:"host=your_host dbname=your_db user=your_user port=db_port" \
     -sql "select * from metrics.pruned_segment_metrics"
 ```
