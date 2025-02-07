@@ -201,7 +201,8 @@ def generate_metrics(
     ]
     for col in tqdm(cols):
         grid_values = stats_gdf[col].values  # type: ignore
-        nodes_gdf[col] = griddata(grid_coords, grid_values, target_coords, method="cubic")  # type: ignore
+        # use linear because cubic goes negative
+        nodes_gdf[col] = griddata(grid_coords, grid_values, target_coords, method="linear")  # type: ignore
     # keep only live
     if not nodes_gdf.empty:
         nodes_gdf["bounds_key"] = "bounds"

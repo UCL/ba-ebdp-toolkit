@@ -253,8 +253,8 @@ def generate_graph(
                     is_bridge=is_bridge,
                     is_tunnel=is_tunnel,
                 )
-    logger.info(f'Dropped road types: {", ".join(dropped_road_types)}')
-    logger.info(f'Kept road types: {", ".join(kept_road_types)}')
+    logger.info(f"Dropped road types: {', '.join(dropped_road_types)}")
+    logger.info(f"Kept road types: {', '.join(kept_road_types)}")
 
     return multigraph
 
@@ -264,7 +264,7 @@ def generate_overture_schema() -> dict[str, list[str]]:
     logger.info("Preparing Overture schema")
     overture_csv_file_path = "./src/raw_landuse_schema.csv"
     schema = {
-        "eat_and_drink": [],
+        # "eat_and_drink": [], - don't use because places overriden by more specific categories
         "restaurant": [],
         "bar": [],
         "cafe": [],

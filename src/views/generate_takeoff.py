@@ -91,83 +91,48 @@ def prepare_metrics_parquet(bounds_fids: list[int], out_path: str):
         "cc_betweenness_beta_2000",
         "cc_betweenness_beta_5000",
         "cc_betweenness_beta_10000",
+        "cc_green_nearest_max_1500",
+        "cc_trees_nearest_max_1500",
         "cc_hill_q0_100_nw",
         "cc_hill_q0_500_nw",
         "cc_hill_q0_1500_nw",
         "cc_hill_q0_1500_wt",
-        "cc_area_mean_100_nw",
-        "cc_area_mean_500_nw",
-        "cc_area_mean_1500_nw",
-        "cc_area_mean_1500_wt",
-        "cc_perimeter_mean_100_nw",
-        "cc_perimeter_mean_500_nw",
-        "cc_perimeter_mean_1500_nw",
-        "cc_perimeter_mean_1500_wt",
-        "cc_compactness_mean_100_nw",
-        "cc_compactness_mean_500_nw",
-        "cc_compactness_mean_1500_nw",
-        "cc_compactness_mean_1500_wt",
-        "cc_orientation_mean_100_nw",
-        "cc_orientation_mean_500_nw",
-        "cc_orientation_mean_1500_nw",
-        "cc_orientation_mean_1500_wt",
-        "cc_volume_mean_100_nw",
-        "cc_volume_mean_500_nw",
-        "cc_volume_mean_1500_nw",
-        "cc_volume_mean_1500_wt",
-        "cc_floor_area_ratio_mean_100_nw",
-        "cc_floor_area_ratio_mean_500_nw",
-        "cc_floor_area_ratio_mean_1500_nw",
-        "cc_floor_area_ratio_mean_1500_wt",
-        "cc_form_factor_mean_100_nw",
-        "cc_form_factor_mean_500_nw",
-        "cc_form_factor_mean_1500_nw",
-        "cc_form_factor_mean_1500_wt",
-        "cc_corners_mean_100_nw",
-        "cc_corners_mean_500_nw",
-        "cc_corners_mean_1500_nw",
-        "cc_corners_mean_1500_wt",
-        "cc_shape_index_mean_100_nw",
-        "cc_shape_index_mean_500_nw",
-        "cc_shape_index_mean_1500_nw",
-        "cc_shape_index_mean_1500_wt",
-        "cc_fractal_dimension_mean_100_nw",
-        "cc_fractal_dimension_mean_500_nw",
-        "cc_fractal_dimension_mean_1500_nw",
-        "cc_fractal_dimension_mean_1500_wt",
-        "cc_block_area_mean_100_nw",
-        "cc_block_area_mean_500_nw",
-        "cc_block_area_mean_1500_nw",
-        "cc_block_area_mean_1500_wt",
-        "cc_block_perimeter_mean_100_nw",
-        "cc_block_perimeter_mean_500_nw",
-        "cc_block_perimeter_mean_1500_nw",
-        "cc_block_perimeter_mean_1500_wt",
-        "cc_block_compactness_mean_100_nw",
-        "cc_block_compactness_mean_500_nw",
-        "cc_block_compactness_mean_1500_nw",
-        "cc_block_compactness_mean_1500_wt",
-        "cc_block_orientation_mean_100_nw",
-        "cc_block_orientation_mean_500_nw",
-        "cc_block_orientation_mean_1500_nw",
-        "cc_block_orientation_mean_1500_wt",
-        "cc_block_covered_ratio_mean_100_nw",
-        "cc_block_covered_ratio_mean_500_nw",
-        "cc_block_covered_ratio_mean_1500_nw",
-        "cc_block_covered_ratio_mean_1500_wt",
-        "cc_green_nearest_max_1500",
-        "cc_trees_nearest_max_1500",
     ]
-    for c in OVERTURE_SCHEMA:
+    for c in list(OVERTURE_SCHEMA.keys()) + ["street_furn", "parking", "transport"]:
         if c in ["structure_and_geography", "mass_media"]:
             continue
         cols.extend(
             [
-                f"cc_{c}_100_nw",
-                f"cc_{c}_500_nw",
-                f"cc_{c}_1500_nw",
+                f"cc_{c}_100_nw::int as cc_{c}_100_nw",
+                f"cc_{c}_500_nw::int as cc_{c}_500_nw",
+                f"cc_{c}_1500_nw::int as cc_{c}_1500_nw",
                 f"cc_{c}_1500_wt",
                 f"cc_{c}_nearest_max_1500",
+            ]
+        )
+    for c in [
+        "area_mean",
+        "perimeter_mean",
+        "compactness_mean",
+        "orientation_mean",
+        "volume_mean",
+        "floor_area_ratio_mean",
+        "form_factor_mean",
+        "corners_mean",
+        "shape_index_mean",
+        "fractal_dimension_mean",
+        "block_area_mean",
+        "block_perimeter_mean",
+        "block_compactness_mean",
+        "block_orientation_mean",
+        "block_covered_ratio_mean",
+    ]:
+        cols.extend(
+            [
+                f"cc_{c}_100_nw::int as cc_{c}_100_nw",
+                f"cc_{c}_500_nw::int as cc_{c}_500_nw",
+                f"cc_{c}_1500_nw::int as cc_{c}_1500_nw",
+                f"cc_{c}_1500_wt",
             ]
         )
     logger.info("Reading")
@@ -240,6 +205,7 @@ if __name__ == "__main__":
     """ """
     # prepare_data_takeoffs("nicosia", 105, 119)
     # prepare_data_takeoffs("madrid", 6, 7)
-    prepare_metrics_takeoffs("madrid", 601)
+    # prepare_metrics_takeoffs("madrid", 601)
     # prepare_metrics_takeoffs("berlin", 100)
-    # prepare_metrics_parquet(list(range(1, 201)), "temp")
+    prepare_metrics_takeoffs("paris", 65)
+    # prepare_metrics_parquet([1], "temp")
