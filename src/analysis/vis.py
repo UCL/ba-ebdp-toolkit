@@ -7,11 +7,77 @@ import seaborn as sns
 sns.set_theme(style="ticks")
 
 # %%
-# Load GeoDataFrame from a GeoParquet file
-file_path = "temp/eu_segment_metrics_65_65.parquet"
-gdf = gpd.read_parquet(file_path)
+cols = [
+    "cc_beta_2000",
+    "cc_beta_5000",
+    "cc_beta_10000",
+    "cc_betweenness_2000",
+    "cc_betweenness_5000",
+    "cc_betweenness_10000",
+    "cc_green_nearest_max_1500",
+    "cc_trees_nearest_max_1500",
+    "cc_hill_q0_500_nw",
+    "cc_restaurant_500_nw",
+    "cc_bar_500_nw",
+    "cc_cafe_500_nw",
+    "cc_accommodation_500_nw",
+    "cc_automotive_500_nw",
+    "cc_arts_and_entertainment_500_nw",
+    "cc_attractions_and_activities_500_nw",
+    "cc_active_life_500_nw",
+    "cc_beauty_and_spa_500_nw",
+    "cc_education_500_nw",
+    "cc_financial_service_500_nw",
+    "cc_private_establishments_and_corporates_500_nw",
+    "cc_retail_500_nw",
+    "cc_health_and_medical_500_nw",
+    "cc_pets_500_nw",
+    "cc_business_to_business_500_nw",
+    "cc_public_service_and_government_500_nw",
+    "cc_religious_organization_500_nw",
+    "cc_real_estate_500_nw",
+    "cc_travel_500_nw",
+    "cc_home_service_500_nw",
+    "cc_professional_services_500_nw",
+    "cc_street_furn_500_nw",
+    "cc_parking_500_nw",
+    "cc_transport_500_nw",
+    "cc_perimeter_mean_1500_wt",
+    "cc_compactness_mean_1500_wt",
+    "cc_orientation_mean_1500_wt",
+    "cc_volume_mean_1500_wt",
+    "cc_floor_area_ratio_mean_1500_wt",
+    "cc_form_factor_mean_1500_wt",
+    "cc_corners_mean_1500_wt",
+    "cc_shape_index_mean_1500_wt",
+    "cc_fractal_dimension_mean_1500_wt",
+    "cc_block_area_mean_1500_wt",
+    "cc_block_perimeter_mean_1500_wt",
+    "cc_block_compactness_mean_1500_wt",
+    "cc_block_orientation_mean_1500_wt",
+    "cc_block_covered_ratio_mean_1500_wt",
+]
+stats_cols = ["m", "f", "y_lt15", "y_1564", "y_ge65", "emp", "nat", "eu_oth", "oth", "same", "chg_in", "chg_out"]
 
-MAX_ROWS = 100000
+# %%
+# Load GeoDataFrame from a GeoParquet file
+file_path = "temp/t2e_metrics.parquet"
+gdf = gpd.read_parquet(
+    file_path,
+    columns=[
+        "fid",
+        "x",
+        "y",
+        "geom",
+        "t",
+    ]
+    + stats_cols
+    + cols,
+    bbox=None,
+)
+
+# %%
+MAX_ROWS = 3000000  # 4m too much for 16GB RAM
 
 # Shuffle and subsample
 print(len(gdf))
@@ -29,11 +95,8 @@ gdf.head()
 # %%
 list(gdf.columns)
 # %%
-# List of columns to normalize
-norm_cols = ["m", "f", "y_lt15", "y_1564", "y_ge65", "emp", "nat", "eu_oth", "oth", "same", "chg_in", "chg_out"]
-
 # clip negative interpolation until rerun with linear
-for col in ["t"] + norm_cols:
+for col in stats_cols:
     gdf[col] = np.clip(gdf[col], 0, None)  # Ensures values are >= 0
 
 # Optionally, replace NaN values back with 0 if needed
@@ -43,7 +106,7 @@ gdf.fillna(0, inplace=True)
 gdf["t"] = gdf["t"].replace(0, 1)
 
 # Normalize each column by 'p'
-for col in norm_cols:
+for col in stats_cols:
     gdf[f"{col}_perc"] = (gdf[col] / gdf["t"]) * 100
 
 # Display the first few rows to check
@@ -119,72 +182,22 @@ for col in explore_cols:
     plt.show()
 
 # %%
+
 var_cols = [
-    # "x",
-    # "y",
     "t",
     "m_perc",
     "f_perc",
     "y_lt15_perc",
     "y_1564_perc",
     "y_ge65_perc",
-    # "emp_perc",
+    "emp_perc",
     "nat_perc",
     "eu_oth_perc",
     "oth_perc",
     "same_perc",
     "chg_in_perc",
     "chg_out_perc",
-    "cc_beta_2000",
-    "cc_beta_5000",
-    "cc_beta_10000",
-    "cc_betweenness_2000",
-    "cc_betweenness_5000",
-    "cc_betweenness_10000",
-    "cc_green_nearest_max_1500",
-    "cc_trees_nearest_max_1500",
-    "cc_hill_q0_500_nw",
-    "cc_eat_and_drink_500_nw",
-    "cc_restaurant_500_nw",
-    "cc_bar_500_nw",
-    "cc_cafe_500_nw",
-    "cc_accommodation_500_nw",
-    "cc_automotive_500_nw",
-    "cc_arts_and_entertainment_500_nw",
-    "cc_attractions_and_activities_500_nw",
-    "cc_active_life_500_nw",
-    "cc_beauty_and_spa_500_nw",
-    "cc_education_500_nw",
-    "cc_financial_service_500_nw",
-    # "cc_private_establishments_and_corporates_500_nw",
-    "cc_retail_500_nw",
-    "cc_health_and_medical_500_nw",
-    "cc_pets_500_nw",
-    "cc_business_to_business_500_nw",
-    "cc_public_service_and_government_500_nw",
-    "cc_religious_organization_500_nw",
-    "cc_real_estate_500_nw",
-    "cc_travel_500_nw",
-    "cc_home_service_500_nw",
-    "cc_professional_services_500_nw",
-    "cc_street_furn_500_nw",
-    "cc_parking_500_nw",
-    "cc_transport_500_nw",
-    "cc_perimeter_mean_1500_wt",
-    "cc_compactness_mean_1500_wt",
-    "cc_orientation_mean_1500_wt",
-    "cc_volume_mean_1500_wt",
-    "cc_floor_area_ratio_mean_1500_wt",
-    "cc_form_factor_mean_1500_wt",
-    "cc_corners_mean_1500_wt",
-    "cc_shape_index_mean_1500_wt",
-    "cc_fractal_dimension_mean_1500_wt",
-    "cc_block_area_mean_1500_wt",
-    "cc_block_perimeter_mean_1500_wt",
-    "cc_block_compactness_mean_1500_wt",
-    "cc_block_orientation_mean_1500_wt",
-    "cc_block_covered_ratio_mean_1500_wt",
-]
+] + cols
 
 
 # %%

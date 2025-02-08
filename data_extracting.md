@@ -9,7 +9,7 @@ SELECT
     fid,
     x,
     y,
-    m.geom,
+    geom,
     t,
     m,
     f,
@@ -237,7 +237,7 @@ SELECT
     cc_block_covered_ratio_mean_1500_nw::int as cc_block_covered_ratio_mean_1500_nw,
     cc_block_covered_ratio_mean_1500_wt
 FROM
-    metrics.segment_metrics m;
+    metrics.segment_metrics;
 ```
 
 ## Extracting to local file
