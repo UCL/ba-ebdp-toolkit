@@ -288,7 +288,7 @@ def generate_overture_schema() -> dict[str, list[str]]:
         "mass_media": [],
         "home_service": [],
         "professional_services": [],
-        "structure_and_geography": [],
+        # "structure_and_geography": [],
     }
     for category, _list_val in schema.items():
         with open(overture_csv_file_path) as schema_csv:
